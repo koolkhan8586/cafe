@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+/* Cafe LSAF palette: warm espresso browns on a cream ground, with a
+   dark-mode counterpart. Everything downstream uses these tokens. */
+:root {
+  --background: #faf7f2;
+  --surface: #ffffff;
+  --surface-muted: #f3ede4;
+  --border: #e6ddd0;
+  --foreground: #241c16;
+  --muted: #6f6257;
+  --brand: #8a5a2b;
+  --brand-strong: #6d4520;
+  --brand-soft: #f6ece0;
+  --on-brand: #ffffff;
+  --success: #1f7a4d;
+  --success-soft: #e3f4eb;
+  --warning: #9a6206;
+  --warning-soft: #fdf0d8;
+  --danger: #b03434;
+  --danger-soft: #fbe7e7;
+  --info: #2a5f8f;
+  --info-soft: #e5eff8;
+
+  /* Chart series. Categorical slots 1 and 2 of the validated default data-viz
+     palette; both modes pass the lightness, chroma, CVD-separation,
+     normal-vision and contrast checks. Do not re-tint these by eye. */
+  --series-profit: #2a78d6;
+  --series-cost: #eb6834;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #17120e;
+    --surface: #201a15;
+    --surface-muted: #2a221b;
+    --border: #3a2f26;
+    --foreground: #f3ebe2;
+    --muted: #a99887;
+    --brand: #d8a165;
+    --brand-strong: #e8b981;
+    --brand-soft: #2f2419;
+    --on-brand: #1a120a;
+    --success: #62c795;
+    --success-soft: #16301f;
+    --warning: #e0ac52;
+    --warning-soft: #322509;
+    --danger: #ef8b8b;
+    --danger-soft: #341a1a;
+    --info: #8ec0ec;
+    --info-soft: #16232f;
+
+    --series-profit: #3987e5;
+    --series-cost: #d95926;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border-subtle: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-on-brand: var(--on-brand);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-series-profit: var(--series-profit);
+  --color-series-cost: var(--series-cost);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+}
+
+/* Number inputs used for money and quantities: hide the spinners so the
+   fields line up with the rest of the form controls. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
