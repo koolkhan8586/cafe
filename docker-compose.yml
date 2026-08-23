@@ -1,0 +1,50 @@
+# Cafe LSAF + WAHA, ready to bring up together.
+#
+#   1. cp .env.example .env   and fill in SESSION_SECRET and WAHA_API_KEY
+#   2. docker compose up -d
+#   3. open http://localhost:3001/dashboard and scan the QR code to pair
+#      WhatsApp with the "default" session
+#   4. open http://localhost:3000 and sign in as ADMIN / admin1234
+#
+# Change that admin password immediately from Staff -> Reset PIN.
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      # The SQLite file lives on the named volume below.
+      DATABASE_URL: "file:/data/cafe.db"
+      SESSION_SECRET: "${SESSION_SECRET:?set SESSION_SECRET in .env}"
+      CAFE_NAME: "${CAFE_NAME:-Cafe LSAF}"
+      CURRENCY_SYMBOL: "${CURRENCY_SYMBOL:-Rs}"
+      # "waha" is the service name below, reachable on the compose network.
+      WAHA_BASE_URL: "http://waha:3000"
+      WAHA_API_KEY: "${WAHA_API_KEY:-}"
+      WAHA_SESSION: "${WAHA_SESSION:-default}"
+      ADMIN_WHATSAPP_CHAT_ID: "${ADMIN_WHATSAPP_CHAT_ID:-}"
+      NOTIFY_EMPLOYEE_ON_STATUS: "${NOTIFY_EMPLOYEE_ON_STATUS:-false}"
+    volumes:
+      - cafe-data:/data
+    depends_on:
+      - waha
+    restart: unless-stopped
+
+  waha:
+    image: devlikeapro/waha:latest
+    ports:
+      # WAHA's own port 3000 is published as 3001 to leave 3000 for the app.
+      - "3001:3000"
+    environment:
+      WHATSAPP_API_KEY: "${WAHA_API_KEY:-}"
+      # Keep the paired session across restarts so you scan the QR code once.
+      WHATSAPP_RESTART_ALL_SESSIONS: "True"
+      WAHA_PRINT_QR: "False"
+    volumes:
+      - waha-sessions:/app/.sessions
+    restart: unless-stopped
+
+volumes:
+  cafe-data:
+  waha-sessions:

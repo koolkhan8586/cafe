@@ -1,0 +1,141 @@
+// Cafe LSAF — data model
+//
+// Money is stored as an INTEGER number of minor units (e.g. paisa for PKR,
+// cents for USD). Never store money as a float. Use the helpers in
+// src/lib/money.ts to parse and format.
+//
+// SQLite does not support native enums, so status/role columns are TEXT and
+// are constrained by the union types in src/lib/types.ts.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+/// A person who can log in: employee, cafe admin, or cafe manager.
+model Staff {
+  id         String   @id @default(cuid())
+  /// Employee ID used as the login handle, e.g. "LSAF-014".
+  code       String   @unique
+  name       String
+  department String?
+  /// E.164-ish number without "+", e.g. "923001234567". Used for order updates.
+  whatsapp   String?
+  /// "EMPLOYEE" | "ADMIN" | "MANAGER"
+  role       String   @default("EMPLOYEE")
+  /// bcrypt hash of the PIN (employees) or password (admin/manager).
+  pinHash    String
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([role])
+}
+
+model Category {
+  id        String @id @default(cuid())
+  name      String @unique
+  sortOrder Int    @default(0)
+
+  items MenuItem[]
+}
+
+model MenuItem {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  /// Selling price in minor units.
+  price       Int
+  /// What it costs the cafe to make, in minor units. Drives margin reporting.
+  costPrice   Int     @default(0)
+  available   Boolean @default(true)
+  sortOrder   Int     @default(0)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems OrderItem[]
+
+  @@index([categoryId])
+  @@index([available])
+}
+
+model Order {
+  /// Doubles as the short human-facing order number shown on the board and in
+  /// WhatsApp messages. SQLite only allows autoincrement on the primary key.
+  id      Int    @id @default(autoincrement())
+  staffId String
+  staff   Staff  @relation(fields: [staffId], references: [id])
+  /// "PENDING" | "PREPARING" | "READY" | "COMPLETED" | "CANCELLED"
+  status  String @default("PENDING")
+  notes   String?
+  /// Department copied from the employee at order time, so reports stay
+  /// correct even if someone later transfers between departments.
+  department String?
+  /// Sum of line totals, in minor units. Denormalised for fast reporting.
+  subtotal   Int
+  /// Sum of (unit cost x qty), in minor units. Denormalised for margin reports.
+  totalCost  Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  completedAt DateTime?
+
+  items         OrderItem[]
+  notifications NotificationLog[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([staffId])
+}
+
+/// A line on an order. Price, cost and name are snapshotted at order time so
+/// that later menu edits never rewrite history or past profit figures.
+model OrderItem {
+  id         String @id @default(cuid())
+  orderId    Int
+  order      Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId String?
+  menuItem   MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  nameSnapshot String
+  unitPrice  Int
+  unitCost   Int
+  qty        Int
+  lineTotal  Int
+  notes      String?
+
+  @@index([orderId])
+  @@index([menuItemId])
+}
+
+/// Audit trail of every outbound WhatsApp message attempt.
+model NotificationLog {
+  id        String  @id @default(cuid())
+  orderId   Int?
+  order     Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  /// "WHATSAPP"
+  channel   String  @default("WHATSAPP")
+  /// WAHA chat id the message was addressed to.
+  target    String
+  body      String
+  /// "SENT" | "FAILED" | "SKIPPED"
+  status    String
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Runtime-editable configuration (WAHA credentials, currency, cafe name).
+/// Values set here override the matching environment variable.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
