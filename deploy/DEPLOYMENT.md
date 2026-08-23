@@ -1,4 +1,4 @@
-# Deploying Cafe LSAF to cafe.khanammad.com
+# Deploying Cafe LSAF to cafe.khanmusa.com
 
 A runbook for putting the app on a Ubuntu/Debian VPS behind nginx with a
 Let's Encrypt certificate. Assumes the repo is at `/var/www/cafe`.
@@ -34,17 +34,23 @@ cd /var/www/cafe && rm -rf node_modules package-lock.json && npm install
 
 ## 1. Point the domain at the server
 
-Create an **A record** for `cafe.khanammad.com` pointing at the server's public
-IPv4 address. Add an **AAAA record** as well only if the server has IPv6.
+An **A record** for `cafe.khanmusa.com` must resolve to the server's public
+IPv4 address, **DNS-only** (grey cloud in Cloudflare, not proxied).
 
 ```bash
 curl -4 ifconfig.me          # the address the A record should hold
-dig +short cafe.khanammad.com
+dig +short cafe.khanmusa.com # must return exactly that address
 ```
 
-Wait until `dig` returns your server's IP before running certbot — the
-certificate check fails otherwise. Propagation is usually minutes, but the TTL
-on an existing record can make it longer.
+If `dig` returns something in `188.114.x.x`, `104.x.x.x` or an IPv6 starting
+`2606:4700:`, the record is **proxied through Cloudflare** and points at their
+edge, not at you. Certbot's HTTP-01 challenge then lands on Cloudflare instead
+of your nginx and fails. Either switch that record to DNS-only, or follow
+[the Cloudflare appendix](#appendix-running-behind-the-cloudflare-proxy) instead
+of step 6.
+
+Note that the apex `khanmusa.com` being proxied does not matter — only the
+record for this subdomain does.
 
 ---
 
@@ -125,8 +131,10 @@ Logs: `sudo journalctl -u cafe-lsaf -f`
 ```bash
 sudo apt-get install -y nginx
 sudo cp deploy/nginx/cafe-proxy.conf         /etc/nginx/snippets/
-sudo cp deploy/nginx/cafe.khanammad.com.conf /etc/nginx/sites-available/
-sudo ln -s /etc/nginx/sites-available/cafe.khanammad.com.conf /etc/nginx/sites-enabled/
+sudo cp deploy/nginx/cafe.khanmusa.com.conf /etc/nginx/sites-available/
+sudo ln -s /etc/nginx/sites-available/cafe.khanmusa.com.conf /etc/nginx/sites-enabled/
+# (Use cafe.khanmusa.com.cloudflare.conf instead only if the record is proxied —
+#  see the appendix. Never enable both site files at once.)
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
@@ -134,7 +142,7 @@ If `nginx -t` complains about `Address family not supported by protocol`, the
 server has no IPv6 — the `listen [::]:80` line in the site config is already
 commented out for that reason, so check you have not uncommented it.
 
-At this point `http://cafe.khanammad.com` should load. **Do not sign in yet** —
+At this point `http://cafe.khanmusa.com` should load. **Do not sign in yet** —
 see the warning in step 6.
 
 ---
@@ -143,7 +151,7 @@ see the warning in step 6.
 
 ```bash
 sudo apt-get install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d cafe.khanammad.com
+sudo certbot --nginx -d cafe.khanmusa.com
 ```
 
 Certbot edits the site config in place, adding the TLS block and an
@@ -160,8 +168,8 @@ http → https redirect, then reloads nginx. Renewal is automatic via the
 Verify:
 
 ```bash
-curl -I https://cafe.khanammad.com/login          # expect 200
-curl -I http://cafe.khanammad.com/login           # expect 301 to https
+curl -I https://cafe.khanmusa.com/login          # expect 200
+curl -I http://cafe.khanmusa.com/login           # expect 301 to https
 ```
 
 ---
@@ -251,3 +259,94 @@ Use `.backup` rather than `cp` — it is safe while the app is writing.
 | WhatsApp alerts logged as `skipped` | `WAHA_BASE_URL` or the recipient is blank. Admin → WhatsApp. |
 | WhatsApp alerts logged as `failed` | WAHA unreachable, wrong API key, or the session is unpaired. Check the error text in the notification log. |
 | Native module error after a Node upgrade | `rm -rf node_modules package-lock.json && npm install`. |
+
+---
+
+## Appendix: running behind the Cloudflare proxy
+
+Only needed if the DNS record for `cafe.khanmusa.com` is **proxied** (orange
+cloud). With a DNS-only record, step 6 above is all you need.
+
+When proxied, browsers see Cloudflare's certificate and Cloudflare talks to your
+origin separately. Certbot's HTTP-01 challenge no longer reaches you, so the
+origin gets a **Cloudflare Origin Certificate** instead — free, valid 15 years,
+no renewal. It is trusted by Cloudflare only, which is all that matters because
+nothing else should be talking to your origin.
+
+### 1. Issue the origin certificate
+
+Cloudflare dashboard → **SSL/TLS → Origin Server → Create Certificate**. Accept
+the defaults, add `cafe.khanmusa.com`, and save the two blocks it shows you:
+
+```bash
+sudo mkdir -p /etc/ssl/cloudflare
+sudo nano /etc/ssl/cloudflare/cafe.khanmusa.com.pem   # the certificate
+sudo nano /etc/ssl/cloudflare/cafe.khanmusa.com.key   # the private key
+sudo chmod 600 /etc/ssl/cloudflare/cafe.khanmusa.com.key
+sudo chown root:root /etc/ssl/cloudflare/*
+```
+
+Then set **SSL/TLS → Overview → Full (strict)**. Not "Flexible": that leaves the
+Cloudflare-to-origin leg unencrypted, which puts session cookies in the clear.
+
+### 2. Restore real visitor IPs
+
+Without this every access-log line shows a Cloudflare address instead of the
+visitor.
+
+```bash
+sudo /var/www/cafe/deploy/cloudflare/update-cloudflare-ips.sh
+```
+
+Cloudflare adds ranges occasionally, so refresh it monthly:
+
+```bash
+sudo crontab -e
+# 0 4 1 * * /var/www/cafe/deploy/cloudflare/update-cloudflare-ips.sh >/dev/null
+```
+
+The ranges are fetched live and never hardcoded in this repo — a stale list
+would silently break IP logging.
+
+### 3. Swap the site config
+
+```bash
+sudo rm /etc/nginx/sites-enabled/cafe.khanmusa.com.conf
+sudo cp deploy/nginx/cafe.khanmusa.com.cloudflare.conf /etc/nginx/sites-available/
+sudo ln -s /etc/nginx/sites-available/cafe.khanmusa.com.cloudflare.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### 4. Lock the origin to Cloudflare (recommended)
+
+Otherwise anyone who discovers `157.173.104.88` can bypass Cloudflare entirely
+by sending a `Host: cafe.khanmusa.com` header. Turn on **SSL/TLS → Origin Server
+→ Authenticated Origin Pulls** in the dashboard, then:
+
+```bash
+sudo curl -fsS -o /etc/ssl/cloudflare/origin-pull-ca.pem \
+  https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem
+```
+
+and uncomment the two `ssl_client_certificate` / `ssl_verify_client` lines in
+the site config, then `sudo nginx -t && sudo systemctl reload nginx`.
+
+Cloudflare then presents a client certificate on every request and nginx rejects
+anything that cannot produce one — verified here: a request without the
+certificate is refused at the TLS layer (400), a request with it gets through.
+
+> **Do not** try to lock the origin down with an nginx `allow`/`deny` list of
+> Cloudflare ranges. nginx evaluates those against `$remote_addr` *after* the
+> realip module has rewritten it to the visitor's IP, so a Cloudflare-only
+> allow-list rejects every genuine visitor and takes the whole site down. This
+> was tested: a simulated visitor arriving through Cloudflare got a 403.
+> Authenticated Origin Pulls is the mechanism that actually works. A firewall
+> rule restricting ports 80/443 to Cloudflare ranges also works, because it acts
+> at the TCP layer before nginx sees the request.
+
+### If you switch a working site to proxied later
+
+The Let's Encrypt certificate keeps working under Full (strict) until it expires,
+but **renewal will fail**, because certbot's HTTP-01 challenge no longer reaches
+your server. Either move to an origin certificate as above, or switch certbot to
+the DNS-01 challenge with a Cloudflare API token.

@@ -130,7 +130,7 @@ WhatsApp is the nudge.
 
 For a real deployment behind a domain — nginx, TLS, a systemd service, WAHA on
 loopback, firewall and backups — follow **[deploy/DEPLOYMENT.md](deploy/DEPLOYMENT.md)**.
-It is written against `cafe.khanammad.com` on a Ubuntu VPS; change the hostname
+It is written against `cafe.khanmusa.com` on a Ubuntu VPS; change the hostname
 and the rest applies.
 
 One thing to know before you start: **TLS is not optional.** The session cookie
