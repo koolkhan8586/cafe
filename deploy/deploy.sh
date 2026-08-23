@@ -31,7 +31,7 @@ systemctl restart "$SERVICE"
 # Poll the app itself rather than trusting `systemctl is-active`: a service
 # caught in a restart loop reports "active" during each attempt, so a process
 # check alone can report success while the site is down.
-HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/login}"
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:${PORT:-3003}/login}"
 echo "==> Waiting for $HEALTH_URL"
 
 for _ in $(seq 1 20); do

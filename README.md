@@ -50,7 +50,7 @@ Then:
 ```bash
 npm install
 npm run setup      # migrate + generate + seed
-npm run dev        # http://localhost:3000
+npm run dev        # http://localhost:3000 (or PORT from your .env)
 ```
 
 That works with no configuration — it creates `dev.db` in the project root and
@@ -147,7 +147,7 @@ cp .env.example .env      # set SESSION_SECRET and WAHA_API_KEY
 docker compose up -d
 ```
 
-That brings up the app on `http://localhost:3000` and WAHA on
+That brings up the app on `http://localhost:3003` and WAHA on
 `http://localhost:3001`. Migrations run and the baseline data is seeded on
 first boot; set `SEED_ON_START=false` once the cafe has real data.
 

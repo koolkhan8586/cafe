@@ -28,20 +28,28 @@ User=cafe
 Group=cafe
 WorkingDirectory=/var/www/cafe
 
-# Reads DATABASE_URL, SESSION_SECRET and the WAHA_* settings.
+# Default port, listed BEFORE the EnvironmentFile so a PORT in .env overrides
+# it. Having a default here means the app never falls back to Next's own 3000
+# and silently stops matching nginx.
+Environment=PORT=3003
+
+# Reads PORT, DATABASE_URL, SESSION_SECRET and the WAHA_* settings.
 # systemd parses KEY=value and KEY="value"; it does not run a shell, so no
 # `export`, no command substitution, and no ${VAR} expansion in this file.
 EnvironmentFile=/var/www/cafe/.env
+
+# Listed after the EnvironmentFile so .env cannot accidentally unset it.
 Environment=NODE_ENV=production
 
 # Bind to loopback only — nginx is the only thing that should reach the app.
-# If you change the port, change it in the nginx proxy snippet too
-# (deploy/nginx/cafe-proxy.conf). Check nothing else holds it first:
-#   sudo ss -ltnp | grep :3000
+# The port comes from PORT above (Next.js reads it), so it is set in one place.
+# If you change it, change proxy_pass in deploy/nginx/cafe-proxy.conf to match
+# and check nothing else holds the new port first:
+#   sudo ss -ltnp | grep :3003
 # Calling the Next binary directly avoids an npx resolution step on every boot.
 # `env` resolves node from PATH; if your node is somewhere unusual, check with
 # `command -v node` and put the absolute path here instead.
-ExecStart=/usr/bin/env node /var/www/cafe/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000
+ExecStart=/usr/bin/env node /var/www/cafe/node_modules/next/dist/bin/next start -H 127.0.0.1
 
 Restart=always
 RestartSec=5

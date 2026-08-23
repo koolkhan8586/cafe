@@ -6,7 +6,7 @@ Let's Encrypt certificate. Assumes the repo is at `/var/www/cafe`.
 Layout when you are done:
 
 ```
-browser ──https──> nginx :443 ──http──> app 127.0.0.1:3000
+browser ──https──> nginx :443 ──http──> app 127.0.0.1:3003
                                           └─ SQLite /var/lib/cafe-lsaf/cafe.db
                                           └─ WAHA  127.0.0.1:3001 (not public)
 ```
@@ -81,6 +81,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 Edit `.env`:
 
 ```ini
+PORT="3003"
 DATABASE_URL="file:/var/lib/cafe-lsaf/cafe.db"
 SESSION_SECRET="<the hex string you just generated>"
 CAFE_NAME="Cafe LSAF"
@@ -111,12 +112,12 @@ sudo -u cafe npm run build
 
 ## 4. Run it as a service
 
-First make sure nothing already holds port 3000 — if you ran `npm run dev`
-while setting up, it is still listening and the service will fail to start with
-`EADDRINUSE`:
+The app listens on the port set by `PORT` in `.env` (3003 by default). Make
+sure nothing already holds it — if you ran `npm run dev` while setting up, it
+is still listening and the service will fail to start with `EADDRINUSE`:
 
 ```bash
-sudo ss -ltnp | grep :3000     # expect no output
+sudo ss -ltnp | grep :3003     # expect no output
 sudo pkill -f "next dev"       # only if the above showed a dev server
 ```
 
@@ -125,7 +126,7 @@ sudo cp deploy/systemd/cafe-lsaf.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now cafe-lsaf
 systemctl status cafe-lsaf
-curl -I http://127.0.0.1:3000/login      # expect 200
+curl -I http://127.0.0.1:3003/login      # expect 200
 ```
 
 The unit binds the app to `127.0.0.1` only, so it is unreachable from the
@@ -222,7 +223,7 @@ sudo ufw enable
 sudo ufw status
 ```
 
-Ports 3000 and 3001 must **not** appear. Both are bound to loopback already;
+Ports 3003 and 3001 must **not** appear. Both are bound to loopback already;
 ufw is the second layer.
 
 ---
@@ -263,7 +264,8 @@ Use `.backup` rather than `cp` — it is safe while the app is writing.
 |---|---|
 | Login POST returns 200 but you stay logged out | No HTTPS yet — the `Secure` cookie is being dropped. Finish step 6. |
 | 502 Bad Gateway | App is not running. `systemctl status cafe-lsaf`, `journalctl -u cafe-lsaf -n 50`. |
-| `EADDRINUSE: address already in use 127.0.0.1:3000` | Something else holds the port — usually an `npm run dev` left over from setup. `sudo ss -ltnp \| grep :3000`, stop it, then `sudo systemctl restart cafe-lsaf`. |
+| `EADDRINUSE: address already in use 127.0.0.1:3003` | Something else holds the port — usually an `npm run dev` left over from setup. `sudo ss -ltnp \| grep :3003`, stop it, then `sudo systemctl restart cafe-lsaf`. |
+| 502 right after changing the port | `PORT` in `.env` and `proxy_pass` in `/etc/nginx/snippets/cafe-proxy.conf` disagree. They must match; nginx cannot read `.env`. |
 | `systemctl status` says "active (running)" but the site is down | The service is restart-looping: you are seeing the newest attempt. `journalctl -u cafe-lsaf -n 50` shows the real error. The unit gives up after 5 failures in 2 minutes and settles into `failed`. |
 | `datasource.url property is required` | `DATABASE_URL` unset. Check `.env` and that systemd is reading it. |
 | Service dies at boot with a `SESSION_SECRET` error | Set `SESSION_SECRET` in `.env`; production refuses to start without it. |

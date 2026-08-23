@@ -4,7 +4,7 @@
 #   2. docker compose up -d
 #   3. open http://localhost:3001/dashboard and scan the QR code to pair
 #      WhatsApp with the "default" session
-#   4. open http://localhost:3000 and sign in as ADMIN / admin1234
+#   4. open http://localhost:3003 and sign in as ADMIN / admin1234
 #
 # Change that admin password immediately from Staff -> Reset PIN.
 
@@ -12,8 +12,9 @@ services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - "3003:3003"
     environment:
+      PORT: "3003"
       # The SQLite file lives on the named volume below.
       DATABASE_URL: "file:/data/cafe.db"
       SESSION_SECRET: "${SESSION_SECRET:?set SESSION_SECRET in .env}"
@@ -34,7 +35,7 @@ services:
   waha:
     image: devlikeapro/waha:latest
     ports:
-      # WAHA's own port 3000 is published as 3001 to leave 3000 for the app.
+      # WAHA's own port 3000 is published as 3001 to leave 3003 for the app.
       - "3001:3000"
     environment:
       WHATSAPP_API_KEY: "${WAHA_API_KEY:-}"
