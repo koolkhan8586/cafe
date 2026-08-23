@@ -32,15 +32,38 @@ period. Both pages export to CSV.
 
 ## Quick start
 
-```bash
-cp .env.example .env
-# Fill in SESSION_SECRET — generate one with:
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+**Requires Node 22 or newer.** Prisma 7 and better-sqlite3 both need it, and npm
+only *warns* about the mismatch — an install on Node 20 looks like it worked and
+then fails later. Check with `node -v`; if you are below 22:
 
+```bash
+# Debian / Ubuntu
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# or with nvm
+nvm install 22 && nvm use 22
+```
+
+Then:
+
+```bash
 npm install
 npm run setup      # migrate + generate + seed
 npm run dev        # http://localhost:3000
 ```
+
+That works with no configuration — it creates `dev.db` in the project root and
+seeds it. **Before putting it in front of anyone**, add a `.env`:
+
+```bash
+cp .env.example .env
+# Set SESSION_SECRET — the app refuses to start in production without it:
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+If you switch Node versions after installing, rebuild the native modules:
+`rm -rf node_modules package-lock.json && npm install`.
 
 Seeded sign-ins — **change these before anyone else can reach the app**:
 
