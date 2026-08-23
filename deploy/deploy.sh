@@ -28,11 +28,22 @@ npm run build
 echo "==> Restarting $SERVICE"
 systemctl restart "$SERVICE"
 
-sleep 3
-if systemctl is-active --quiet "$SERVICE"; then
-  echo "==> $SERVICE is running"
-else
-  echo "==> $SERVICE failed to start; recent logs:" >&2
-  journalctl -u "$SERVICE" -n 30 --no-pager >&2
-  exit 1
-fi
+# Poll the app itself rather than trusting `systemctl is-active`: a service
+# caught in a restart loop reports "active" during each attempt, so a process
+# check alone can report success while the site is down.
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/login}"
+echo "==> Waiting for $HEALTH_URL"
+
+for _ in $(seq 1 20); do
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "$HEALTH_URL" || true)"
+  if [ "$code" = "200" ]; then
+    echo "==> $SERVICE is serving (HTTP 200)"
+    exit 0
+  fi
+  sleep 1
+done
+
+echo "==> $SERVICE is not serving $HEALTH_URL (last status: ${code:-none})" >&2
+echo "==> Recent logs:" >&2
+journalctl -u "$SERVICE" -n 40 --no-pager >&2
+exit 1

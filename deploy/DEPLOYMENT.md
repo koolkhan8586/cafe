@@ -111,6 +111,15 @@ sudo -u cafe npm run build
 
 ## 4. Run it as a service
 
+First make sure nothing already holds port 3000 — if you ran `npm run dev`
+while setting up, it is still listening and the service will fail to start with
+`EADDRINUSE`:
+
+```bash
+sudo ss -ltnp | grep :3000     # expect no output
+sudo pkill -f "next dev"       # only if the above showed a dev server
+```
+
 ```bash
 sudo cp deploy/systemd/cafe-lsaf.service /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -254,6 +263,8 @@ Use `.backup` rather than `cp` — it is safe while the app is writing.
 |---|---|
 | Login POST returns 200 but you stay logged out | No HTTPS yet — the `Secure` cookie is being dropped. Finish step 6. |
 | 502 Bad Gateway | App is not running. `systemctl status cafe-lsaf`, `journalctl -u cafe-lsaf -n 50`. |
+| `EADDRINUSE: address already in use 127.0.0.1:3000` | Something else holds the port — usually an `npm run dev` left over from setup. `sudo ss -ltnp \| grep :3000`, stop it, then `sudo systemctl restart cafe-lsaf`. |
+| `systemctl status` says "active (running)" but the site is down | The service is restart-looping: you are seeing the newest attempt. `journalctl -u cafe-lsaf -n 50` shows the real error. The unit gives up after 5 failures in 2 minutes and settles into `failed`. |
 | `datasource.url property is required` | `DATABASE_URL` unset. Check `.env` and that systemd is reading it. |
 | Service dies at boot with a `SESSION_SECRET` error | Set `SESSION_SECRET` in `.env`; production refuses to start without it. |
 | WhatsApp alerts logged as `skipped` | `WAHA_BASE_URL` or the recipient is blank. Admin → WhatsApp. |
