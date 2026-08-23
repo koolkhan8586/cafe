@@ -13,6 +13,15 @@ Documentation=https://github.com/koolkhan8586/cafe
 After=network-online.target
 Wants=network-online.target
 
+# Give up after 5 failed starts in 2 minutes and enter the "failed" state.
+# Without this, Restart=always plus RestartSec=5 restart-loops forever on a
+# permanent error such as EADDRINUSE: only two attempts fit in systemd's
+# default 10s window, so the default burst limit of 5 never trips and
+# `systemctl status` keeps reporting "active (running)" from the newest
+# attempt while the service is in fact broken.
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
 [Service]
 Type=simple
 User=cafe
@@ -26,6 +35,9 @@ EnvironmentFile=/var/www/cafe/.env
 Environment=NODE_ENV=production
 
 # Bind to loopback only — nginx is the only thing that should reach the app.
+# If you change the port, change it in the nginx proxy snippet too
+# (deploy/nginx/cafe-proxy.conf). Check nothing else holds it first:
+#   sudo ss -ltnp | grep :3000
 # Calling the Next binary directly avoids an npx resolution step on every boot.
 # `env` resolves node from PATH; if your node is somewhere unusual, check with
 # `command -v node` and put the absolute path here instead.
