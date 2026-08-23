@@ -126,6 +126,20 @@ WhatsApp is the nudge.
 
 ---
 
+## Deploying to a domain
+
+For a real deployment behind a domain — nginx, TLS, a systemd service, WAHA on
+loopback, firewall and backups — follow **[deploy/DEPLOYMENT.md](deploy/DEPLOYMENT.md)**.
+It is written against `cafe.khanammad.com` on a Ubuntu VPS; change the hostname
+and the rest applies.
+
+One thing to know before you start: **TLS is not optional.** The session cookie
+is issued with the `Secure` flag in production and browsers will not store it
+over plain HTTP, so signing in appears to silently fail until the certificate is
+in place.
+
+Update an existing deployment with `sudo /var/www/cafe/deploy/deploy.sh`.
+
 ## Running with Docker
 
 ```bash
