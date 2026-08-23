@@ -1,0 +1,52 @@
+# Cafe LSAF application service.
+#
+# Install:
+#   sudo cp deploy/systemd/cafe-lsaf.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now cafe-lsaf
+#
+# Logs:  sudo journalctl -u cafe-lsaf -f
+
+[Unit]
+Description=Cafe LSAF ordering app
+Documentation=https://github.com/koolkhan8586/cafe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cafe
+Group=cafe
+WorkingDirectory=/var/www/cafe
+
+# Reads DATABASE_URL, SESSION_SECRET and the WAHA_* settings.
+# systemd parses KEY=value and KEY="value"; it does not run a shell, so no
+# `export`, no command substitution, and no ${VAR} expansion in this file.
+EnvironmentFile=/var/www/cafe/.env
+Environment=NODE_ENV=production
+
+# Bind to loopback only — nginx is the only thing that should reach the app.
+# Calling the Next binary directly avoids an npx resolution step on every boot.
+# `env` resolves node from PATH; if your node is somewhere unusual, check with
+# `command -v node` and put the absolute path here instead.
+ExecStart=/usr/bin/env node /var/www/cafe/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000
+
+Restart=always
+RestartSec=5
+# Give a slow first boot (migrations already ran, but startup can be cold).
+TimeoutStartSec=60
+
+# Basic hardening. ProtectSystem=full keeps /usr and /etc read-only; the
+# database lives outside the app directory and is listed as writable.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/cafe-lsaf /var/www/cafe/.next
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cafe-lsaf
+
+[Install]
+WantedBy=multi-user.target
