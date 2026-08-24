@@ -243,21 +243,14 @@ cat <<EOF
 
 ========================================================================
 Cafe LSAF is installed for https://${DOMAIN}
+(No Docker — app runs via systemd on 127.0.0.1:3003; nginx proxies to it.)
 
 Next steps:
   1. Open https://${DOMAIN}/login and sign in as ADMIN / admin1234
   2. Staff → Reset PIN — change ADMIN, MANAGER, and every employee PIN
-  3. Optional WhatsApp (WAHA), bound to loopback only:
-
-       docker run -d --name waha --restart unless-stopped \\
-         -p 127.0.0.1:3001:3000 \\
-         -e WHATSAPP_API_KEY="\$(grep ^WAHA_API_KEY= ${APP_DIR}/.env | cut -d= -f2- | tr -d '"')" \\
-         -e WHATSAPP_RESTART_ALL_SESSIONS=True \\
-         -v waha-sessions:/app/.sessions \\
-         devlikeapro/waha
-
-     Then: ssh -L 3001:127.0.0.1:3001 root@<server> and open
-     http://localhost:3001/dashboard to scan the QR.
+  3. WhatsApp is optional. Skip unless you want order alerts.
+     If you do, see deploy/DEPLOYMENT.md step 7 (WAHA). Docker is only
+     used for that optional piece, never for the cafe app itself.
 
   4. Later updates:  sudo ${APP_DIR}/deploy/deploy.sh
 
