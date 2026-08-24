@@ -33,6 +33,9 @@ WorkingDirectory=/var/www/cafe
 # `export`, no command substitution, and no ${VAR} expansion in this file.
 EnvironmentFile=/var/www/cafe/.env
 Environment=NODE_ENV=production
+# Must come after EnvironmentFile — Next.js uses PORT over -p, so a PORT=3000
+# in .env would ignore -p 3003 and collide with whatever holds 3000.
+Environment=PORT=3003
 
 # Bind to loopback only — nginx is the only thing that should reach the app.
 # Port 3003 (not the Next default 3000). If you change it, change it in the
