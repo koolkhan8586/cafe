@@ -29,6 +29,7 @@ export default async function AdminSettingsPage() {
           initial={{
             CAFE_NAME: settings.CAFE_NAME,
             CURRENCY_SYMBOL: settings.CURRENCY_SYMBOL,
+            CAFE_PUBLIC_URL: settings.CAFE_PUBLIC_URL,
             WAHA_BASE_URL: settings.WAHA_BASE_URL,
             WAHA_SESSION: settings.WAHA_SESSION,
             ADMIN_WHATSAPP_CHAT_ID: settings.ADMIN_WHATSAPP_CHAT_ID,

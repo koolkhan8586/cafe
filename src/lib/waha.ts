@@ -180,11 +180,32 @@ export async function notifyAdminOfOrder(order: OrderForMessage): Promise<SendRe
     "",
     `*Total: ${formatMoney(order.subtotal, currency)}*`,
     order.notes ? `\n📝 Note: ${order.notes}` : null,
+    "",
+    "Reply from this chat:",
+    `✅ ACCEPT ${order.id} — start preparing`,
+    `❌ REJECT ${order.id} — cancel`,
+    `🖥 COUNTER — ${counterBoardUrl(settings)}`,
   ]
     .filter((line): line is string => line !== null)
     .join("\n");
 
-  return sendWhatsApp(settings.ADMIN_WHATSAPP_CHAT_ID, body, order.id);
+  const chatId = settings.ADMIN_WHATSAPP_CHAT_ID;
+  const buttons = await sendWhatsAppButtons(
+    chatId,
+    {
+      header: `${settings.CAFE_NAME} — #${order.id}`,
+      body,
+      footer: "Or reply ACCEPT / REJECT / COUNTER",
+      buttons: [
+        { type: "reply", text: `ACCEPT ${order.id}` },
+        { type: "reply", text: `REJECT ${order.id}` },
+        { type: "url", text: "Counter", url: counterBoardUrl(settings) },
+      ],
+    },
+    order.id,
+  );
+  if (buttons.status === "SENT") return buttons;
+  return sendWhatsApp(chatId, body, order.id);
 }
 
 /** Optional courtesy message to the employee when their order changes state. */
@@ -222,4 +243,97 @@ function describeError(error: unknown): string {
 function trim(text: string, max = 300): string {
   const value = text.trim();
   return value.length > max ? `${value.slice(0, max)}…` : value;
+}
+
+export function cafePublicUrl(settings: { CAFE_PUBLIC_URL: string }): string {
+  return settings.CAFE_PUBLIC_URL.replace(/\/+$/, "") || "https://cafe.khanmusa.com";
+}
+
+export function counterBoardUrl(settings: { CAFE_PUBLIC_URL: string }): string {
+  return `${cafePublicUrl(settings)}/admin/orders`;
+}
+
+/** True when this WhatsApp chat is the configured order-alert destination. */
+export function isAdminAlertChat(fromRaw: string, adminChatRaw: string): boolean {
+  const from = toChatId(fromRaw);
+  const admin = toChatId(adminChatRaw);
+  if (!from || !admin) return false;
+  return from.toLowerCase() === admin.toLowerCase();
+}
+
+type ButtonSpec =
+  | { type: "reply"; text: string }
+  | { type: "url"; text: string; url: string };
+
+/**
+ * Interactive buttons. Many WAHA engines return 501; callers should fall back
+ * to sendText. Logged like sendWhatsApp.
+ */
+async function sendWhatsAppButtons(
+  chatIdRaw: string,
+  message: {
+    header: string;
+    body: string;
+    footer: string;
+    buttons: ButtonSpec[];
+  },
+  orderId?: number,
+): Promise<SendResult> {
+  const settings = await getSettings();
+  const chatId = toChatId(chatIdRaw);
+  const logBody = `[buttons] ${message.body}`;
+
+  const log = async (result: SendResult) => {
+    // Only persist a successful buttons send. 501/unsupported engines fall
+    // through to sendText; a FAILED row here would look like the alert never
+    // went out.
+    if (result.status === "SENT") {
+      await prisma.notificationLog.create({
+        data: {
+          orderId: orderId ?? null,
+          target: chatId || chatIdRaw || "(none)",
+          body: logBody,
+          status: "SENT",
+          error: null,
+        },
+      });
+    }
+    return result;
+  };
+
+  if (!settings.WAHA_BASE_URL) {
+    return log({ status: "SKIPPED", reason: "WAHA base URL is not configured." });
+  }
+  if (!chatId) {
+    return log({ status: "SKIPPED", reason: "No WhatsApp recipient configured." });
+  }
+
+  try {
+    const res = await wahaFetch(
+      settings.WAHA_BASE_URL,
+      settings.WAHA_API_KEY,
+      "/api/sendButtons",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          session: settings.WAHA_SESSION,
+          chatId,
+          header: message.header,
+          body: message.body,
+          footer: message.footer,
+          buttons: message.buttons,
+        }),
+      },
+    );
+    if (!res.ok) {
+      const detail = trim(await res.text());
+      return log({
+        status: "FAILED",
+        error: `WAHA responded ${res.status}: ${detail}`,
+      });
+    }
+    return log({ status: "SENT" });
+  } catch (error) {
+    return log({ status: "FAILED", error: describeError(error) });
+  }
 }

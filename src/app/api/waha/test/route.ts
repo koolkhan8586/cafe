@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     const settings = await getSettings();
     const result = await sendWhatsApp(
       settings.ADMIN_WHATSAPP_CHAT_ID,
-      `*${settings.CAFE_NAME}*\nTest message — WhatsApp notifications are wired up correctly.`,
+      `*${settings.CAFE_NAME}*\nTest message — WhatsApp notifications are wired up.\nReply ACCEPT / REJECT / COUNTER on the next order alert.`,
     );
     return NextResponse.json({ session, send: result });
   } catch (error) {

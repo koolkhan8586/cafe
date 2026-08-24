@@ -14,6 +14,7 @@ import {
 type Values = {
   CAFE_NAME: string;
   CURRENCY_SYMBOL: string;
+  CAFE_PUBLIC_URL: string;
   WAHA_BASE_URL: string;
   WAHA_SESSION: string;
   ADMIN_WHATSAPP_CHAT_ID: string;
@@ -125,6 +126,21 @@ export function WahaSettingsForm({
         </div>
 
         <div>
+          <label className={labelClass} htmlFor="public-url">Public cafe URL</label>
+          <input
+            id="public-url"
+            className={inputClass}
+            value={values.CAFE_PUBLIC_URL}
+            onChange={(e) => setValues({ ...values, CAFE_PUBLIC_URL: e.target.value })}
+            placeholder="https://cafe.khanmusa.com"
+          />
+          <p className="mt-1 text-xs text-muted">
+            Used as the Counter link on WhatsApp order alerts. Point WAHA&apos;s
+            webhook at <code>{values.CAFE_PUBLIC_URL.replace(/\/+$/, "") || "https://cafe.khanmusa.com"}/api/waha/webhook</code>.
+          </p>
+        </div>
+
+        <div>
           <label className={labelClass} htmlFor="waha-url">WAHA base URL</label>
           <input
             id="waha-url"
@@ -178,6 +194,8 @@ export function WahaSettingsForm({
           <p className="mt-1 text-xs text-muted">
             A phone number in international format without “+”, or a full chat id
             such as <code>923001234567@c.us</code> (group: <code>…@g.us</code>).
+            People in that chat can reply <code>ACCEPT 12</code>,{" "}
+            <code>REJECT 12</code>, or <code>COUNTER</code>.
           </p>
         </div>
 

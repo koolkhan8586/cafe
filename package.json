@@ -17,7 +17,7 @@
     "predev": "node scripts/check-node.mjs",
     "prebuild": "node scripts/check-node.mjs",
     "presetup": "node scripts/check-node.mjs",
-    "test": "tsx --test src/lib/hr-sso.test.ts"
+    "test": "tsx --test src/lib/*.test.ts"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.9.1",

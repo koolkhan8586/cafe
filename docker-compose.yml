@@ -20,6 +20,7 @@ services:
       HR_SSO_SECRET: "${HR_SSO_SECRET:-}"
       CAFE_NAME: "${CAFE_NAME:-Cafe LSAF}"
       CURRENCY_SYMBOL: "${CURRENCY_SYMBOL:-Rs}"
+      CAFE_PUBLIC_URL: "${CAFE_PUBLIC_URL:-https://cafe.khanmusa.com}"
       PORT: "3003"
       # "waha" is the service name below, reachable on the compose network.
       WAHA_BASE_URL: "http://waha:3000"
@@ -40,6 +41,9 @@ services:
       - "3001:3000"
     environment:
       WHATSAPP_API_KEY: "${WAHA_API_KEY:-}"
+      # Incoming ACCEPT / REJECT / COUNTER replies.
+      WHATSAPP_HOOK_URL: "${WAHA_HOOK_URL:-http://app:3003/api/waha/webhook}"
+      WHATSAPP_HOOK_EVENTS: "message"
       # Keep the paired session across restarts so you scan the QR code once.
       WHATSAPP_RESTART_ALL_SESSIONS: "True"
       WAHA_PRINT_QR: "False"

@@ -82,15 +82,17 @@ month of plausible past orders. Never run it against real cafe data.
 
 ## Connecting WhatsApp (WAHA)
 
-WAHA is a self-hosted HTTP API in front of WhatsApp. The app only uses two of
-its endpoints: `GET /api/sessions/{session}` to check the pairing, and
-`POST /api/sendText` to send a message.
+WAHA is a self-hosted HTTP API in front of WhatsApp. The app sends new-order
+alerts and listens for **ACCEPT / REJECT / COUNTER** replies.
 
 1. **Run WAHA.** Either use the bundled compose file (below), or on its own:
 
    ```bash
-   docker run -it --rm -p 3001:3000 \
+   docker run -d --name waha --restart unless-stopped \
+     -p 127.0.0.1:3001:3000 \
      -e WHATSAPP_API_KEY=pick-a-long-random-key \
+     -e WHATSAPP_HOOK_URL=https://cafe.khanmusa.com/api/waha/webhook \
+     -e WHATSAPP_HOOK_EVENTS=message \
      -v waha-sessions:/app/.sessions \
      devlikeapro/waha
    ```
@@ -115,6 +117,17 @@ its endpoints: `GET /api/sessions/{session}` to check the pairing, and
 
 Optionally tick *"Also message the employee when their order changes status"* —
 that needs a WhatsApp number on the employee's staff record.
+
+### Accept / reject from WhatsApp
+
+Each new-order alert includes:
+
+- `ACCEPT 12` — start preparing (same as Accept on the counter board)
+- `REJECT 12` — cancel
+- `COUNTER` — reply with a link to `https://cafe.khanmusa.com/admin/orders`
+
+Reply in the **same chat** the alert was sent to (the admin number or group).
+WAHA must POST incoming messages to `/api/waha/webhook` (`WHATSAPP_HOOK_URL`).
 
 ### If WhatsApp is down
 
@@ -225,6 +238,7 @@ prisma/schema.prisma        Data model; money is Int minor units
 prisma/seed.ts              Baseline menu and accounts
 prisma/demo-orders.ts       Optional sample history for the reports
 src/lib/waha.ts             WAHA client + the message templates
+src/lib/whatsapp-commands.ts  ACCEPT / REJECT / COUNTER reply parser
 src/lib/reports.ts          All sales and cost aggregation
 src/lib/money.ts            Money parsing, formatting, margin
 src/lib/session.ts          HMAC-signed httpOnly session cookie
