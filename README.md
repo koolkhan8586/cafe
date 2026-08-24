@@ -154,6 +154,37 @@ appears to silently fail until the certificate is in place.
 
 Update an existing deployment with `sudo /var/www/cafe/deploy/deploy.sh`.
 
+## HR single sign-on
+
+The HR app ([koolkhan8586/hr-laravel](https://github.com/koolkhan8586/hr-laravel), PR #46)
+opens Cafe already signed in:
+
+1. HR builds a 2-minute HMAC token from the user’s `employee_code`
+2. Browser goes to `https://cafe.khanmusa.com/sso?token=...`
+3. Cafe validates the token with `HR_SSO_SECRET`, starts a session, and
+   lands on the role home (`/menu` for employees)
+
+PIN login still works for kiosk / walk-up. Put the **same** secret on both
+apps (min 16 characters):
+
+```bash
+# generate once
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Cafe .env
+HR_SSO_SECRET=paste-the-secret-here
+
+# HR /var/www/hr/.env
+CAFE_BASE_URL=https://cafe.khanmusa.com
+CAFE_SSO_SECRET=paste-the-same-secret-here
+CAFE_SSO_TTL=120
+```
+
+Staff `code` in Cafe must match HR `employee_code` (e.g. `LSAF-001`). If the
+code is new, Cafe provisions an EMPLOYEE account on first SSO.
+
+Then restart: `sudo systemctl restart cafe-lsaf`.
+
 ## Running with Docker
 
 ```bash
@@ -197,6 +228,7 @@ src/lib/waha.ts             WAHA client + the message templates
 src/lib/reports.ts          All sales and cost aggregation
 src/lib/money.ts            Money parsing, formatting, margin
 src/lib/session.ts          HMAC-signed httpOnly session cookie
+src/lib/hr-sso.ts           HR HMAC SSO token (paired with hr-laravel)
 src/lib/auth.ts             bcrypt, login, role guards for pages
 src/lib/api-auth.ts         Role guards for API routes
 src/app/(app)/             Signed-in pages, grouped by role
@@ -215,6 +247,7 @@ src/app/api/                Route handlers
 | `npm run db:demo` | Generate ~30 days of sample orders |
 | `npm run db:studio` | Browse the database |
 | `npm run lint` | ESLint |
+| `npm test` | HR SSO token unit tests |
 
 ---
 

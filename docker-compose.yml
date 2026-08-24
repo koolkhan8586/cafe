@@ -17,6 +17,7 @@ services:
       # The SQLite file lives on the named volume below.
       DATABASE_URL: "file:/data/cafe.db"
       SESSION_SECRET: "${SESSION_SECRET:?set SESSION_SECRET in .env}"
+      HR_SSO_SECRET: "${HR_SSO_SECRET:-}"
       CAFE_NAME: "${CAFE_NAME:-Cafe LSAF}"
       CURRENCY_SYMBOL: "${CURRENCY_SYMBOL:-Rs}"
       PORT: "3003"
