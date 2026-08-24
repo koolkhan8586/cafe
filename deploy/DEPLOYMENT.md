@@ -13,6 +13,39 @@ browser ──https──> nginx :443 ──http──> app 127.0.0.1:3000
 
 ---
 
+## Fast path (recommended)
+
+Point DNS at the server first (step 1 below), install Node 22+, clone the
+repo, then let the installer do the rest — service user, `.env`, migrate,
+seed, build, systemd, nginx, certbot, and firewall:
+
+```bash
+# On the VPS
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs git
+sudo mkdir -p /var/www
+sudo git clone <your-repo-url> /var/www/cafe
+cd /var/www/cafe
+sudo ./deploy/install.sh
+```
+
+That puts the site on **https://cafe.khanmusa.com**. Then change the seeded
+PINs (step 9) and optionally start WAHA (step 7).
+
+Useful flags:
+
+| Flag | When |
+|---|---|
+| `--skip-certbot` | DNS is not ready yet; you will run certbot later |
+| `--cloudflare` | Orange-cloud proxy; origin cert already on disk (see appendix) |
+| `--skip-seed` | Reinstall over an existing database |
+| `--domain other.example.com` | Different hostname (rewrites the nginx `server_name`) |
+
+The sections below are the same steps, expanded, if you prefer to run them
+by hand or need to diagnose a half-finished install.
+
+---
+
 ## 0. Prerequisites
 
 **Node 22+.** Prisma 7 and better-sqlite3 both require it.

@@ -6,24 +6,38 @@
 # Safe to re-run. Migrations are applied before the new build goes live, and
 # the service is only restarted once the build succeeds — a failed build
 # leaves the previous version serving.
+#
+# npm / prisma / build always run as the cafe service user so node_modules
+# and .next stay owned by the account that runs next start.
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/var/www/cafe}"
 SERVICE="${SERVICE:-cafe-lsaf}"
+APP_USER="${APP_USER:-cafe}"
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "Run as root: sudo $0" >&2
+  exit 1
+fi
 
 cd "$APP_DIR"
 
 echo "==> Fetching latest code"
 git pull --ff-only
 
-echo "==> Installing dependencies"
-npm ci
+# Keep the tree readable/writable by the service user after a root-owned pull.
+chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+# Preserve restrictive perms on secrets if present.
+[ -f .env ] && chmod 600 .env && chown "$APP_USER:$APP_USER" .env
+
+echo "==> Installing dependencies (as $APP_USER)"
+sudo -u "$APP_USER" npm ci
 
 echo "==> Applying database migrations"
-npx prisma migrate deploy
+sudo -u "$APP_USER" npx prisma migrate deploy
 
 echo "==> Building"
-npm run build
+sudo -u "$APP_USER" npm run build
 
 echo "==> Restarting $SERVICE"
 systemctl restart "$SERVICE"
