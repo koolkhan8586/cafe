@@ -160,6 +160,8 @@ Edit `.env`:
 ```ini
 DATABASE_URL="file:/var/lib/cafe-lsaf/cafe.db"
 SESSION_SECRET="<the hex string you just generated>"
+# Same value as CAFE_SSO_SECRET on the HR app. Required for /sso from HR.
+HR_SSO_SECRET=""
 CAFE_NAME="Cafe LSAF"
 CURRENCY_SYMBOL="Rs"
 
@@ -349,6 +351,7 @@ Use `.backup` rather than `cp` — it is safe while the app is writing.
 | Service dies at boot with a `SESSION_SECRET` error | Set `SESSION_SECRET` in `.env`; production refuses to start without it. |
 | WhatsApp alerts logged as `skipped` | `WAHA_BASE_URL` or the recipient is blank. Admin → WhatsApp. |
 | WhatsApp alerts logged as `failed` | WAHA unreachable, wrong API key, or the session is unpaired. Check the error text in the notification log. |
+| HR Cafe tab lands on login with an SSO error | `HR_SSO_SECRET` missing or not the same as HR `CAFE_SSO_SECRET`, or the token expired (2 minutes). Restart `cafe-lsaf` after editing `.env`. |
 | Native module error after a Node upgrade | `rm -rf node_modules package-lock.json && npm install`. |
 
 ### Quick repair for the nginx 404

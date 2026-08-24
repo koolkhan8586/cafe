@@ -9,11 +9,17 @@ import {
   labelClass,
 } from "@/components/ui";
 
-export function LoginForm({ next }: { next?: string }) {
+export function LoginForm({
+  next,
+  initialError,
+}: {
+  next?: string;
+  initialError?: string | null;
+}) {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [secret, setSecret] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError ?? null);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(event: React.FormEvent) {
