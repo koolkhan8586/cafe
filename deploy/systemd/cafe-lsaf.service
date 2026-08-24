@@ -35,13 +35,14 @@ EnvironmentFile=/var/www/cafe/.env
 Environment=NODE_ENV=production
 
 # Bind to loopback only — nginx is the only thing that should reach the app.
-# If you change the port, change it in the nginx proxy snippet too
-# (deploy/nginx/cafe-proxy.conf). Check nothing else holds it first:
-#   sudo ss -ltnp | grep :3000
+# Port 3003 (not the Next default 3000). If you change it, change it in the
+# nginx proxy snippet too (deploy/nginx/cafe-proxy.conf). Check nothing else
+# holds it first:
+#   sudo ss -ltnp | grep :3003
 # Calling the Next binary directly avoids an npx resolution step on every boot.
 # `env` resolves node from PATH; if your node is somewhere unusual, check with
 # `command -v node` and put the absolute path here instead.
-ExecStart=/usr/bin/env node /var/www/cafe/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3000
+ExecStart=/usr/bin/env node /var/www/cafe/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3003
 
 Restart=always
 RestartSec=5
