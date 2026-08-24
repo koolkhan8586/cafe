@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 # First-time install of Cafe LSAF behind nginx at cafe.khanmusa.com.
 #
+# No Docker. The app runs under systemd; nginx proxies to 127.0.0.1:3003.
+# (WAHA/WhatsApp is optional and documented separately.)
+#
 # Run on the Ubuntu/Debian VPS as root (or via sudo), from the repo:
 #
 #   sudo ./deploy/install.sh
+#
+# This copies deploy/nginx/cafe.khanmusa.com.conf into
+# /etc/nginx/sites-available/ (it will not be there until you run this or
+# deploy/fix-nginx.sh — other sites in that folder are unrelated).
 #
 # Optional flags:
 #   --skip-certbot     Install nginx HTTP-only; you run certbot yourself later
@@ -19,7 +26,7 @@
 #   3. Repo already cloned to APP_DIR (default /var/www/cafe)
 #
 # After this script: open https://cafe.khanmusa.com, change seeded PINs,
-# then optionally start WAHA (step 7 in DEPLOYMENT.md).
+# then optionally start WAHA (step 7 in DEPLOYMENT.md) if you want WhatsApp.
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/var/www/cafe}"
