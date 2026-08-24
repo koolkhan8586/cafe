@@ -33,6 +33,9 @@ WorkingDirectory=/var/www/cafe
 # `export`, no command substitution, and no ${VAR} expansion in this file.
 EnvironmentFile=/var/www/cafe/.env
 Environment=NODE_ENV=production
+# Must come after EnvironmentFile — Next.js uses PORT over -p, so a PORT=3000
+# in .env would ignore -p 3003 and collide with whatever holds 3000.
+Environment=PORT=3003
 
 # Bind to loopback only — nginx is the only thing that should reach the app.
 # Port 3003 (not the Next default 3000). If you change it, change it in the
@@ -49,13 +52,15 @@ RestartSec=5
 # Give a slow first boot (migrations already ran, but startup can be cold).
 TimeoutStartSec=60
 
-# Basic hardening. ProtectSystem=full keeps /usr and /etc read-only; the
-# database lives outside the app directory and is listed as writable.
+# Basic hardening. ProtectSystem=full keeps /usr and /etc read-only.
+# ReadWritePaths must cover every directory the app writes to. Listing only
+# .next caused status=226/NAMESPACE when the build had not run yet (path missing)
+# on some systemd versions. ProtectHome is omitted — the cafe user's home is
+# /var/www/cafe, which is the app tree itself.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
-ProtectHome=true
-ReadWritePaths=/var/lib/cafe-lsaf /var/www/cafe/.next
+ReadWritePaths=/var/lib/cafe-lsaf /var/www/cafe
 
 StandardOutput=journal
 StandardError=journal

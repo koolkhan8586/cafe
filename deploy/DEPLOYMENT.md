@@ -339,8 +339,10 @@ Use `.backup` rather than `cp` — it is safe while the app is writing.
 | Symptom | Cause |
 |---|---|
 | **`404 Not Found nginx/… (Ubuntu)`** | The cafe reverse-proxy site is **not enabled**. nginx is answering with its own default page, not the app. A down app would be **502**, not 404. Fix: `sudo /var/www/cafe/deploy/fix-nginx.sh` (or finish `install.sh`). |
+| **`status=226/NAMESPACE` in `systemctl status cafe-lsaf`** | systemd sandbox setup failed — usually the app was never built (no `.next` directory) while the old unit listed only `.next` in `ReadWritePaths`, or `ProtectHome` blocked the app tree. Fix: `sudo -u cafe npm run build`, `sudo cp deploy/systemd/cafe-lsaf.service /etc/systemd/system/`, `sudo systemctl daemon-reload && sudo systemctl restart cafe-lsaf`. |
 | Login POST returns 200 but you stay logged out | No HTTPS yet — the `Secure` cookie is being dropped. Finish step 6. |
 | 502 Bad Gateway | App is not running. `systemctl status cafe-lsaf`, `journalctl -u cafe-lsaf -n 50`. |
+| `EADDRINUSE: address already in use 127.0.0.1:3000` | `.env` has `PORT=3000` (Next ignores `-p 3003`) or a leftover `next` process holds 3000. Run `grep ^PORT= .env`, remove it or set `PORT=3003`, kill the old process (`sudo ss -ltnp \| grep 3000`), update the systemd unit (`Environment=PORT=3003`), then `daemon-reload && restart`. |
 | `EADDRINUSE: address already in use 127.0.0.1:3003` | Something else holds the port — usually a leftover `next start`. `sudo ss -ltnp \| grep :3003`, stop it, then `sudo systemctl restart cafe-lsaf`. |
 | `systemctl status` says "active (running)" but the site is down | The service is restart-looping: you are seeing the newest attempt. `journalctl -u cafe-lsaf -n 50` shows the real error. The unit gives up after 5 failures in 2 minutes and settles into `failed`. |
 | `datasource.url property is required` | `DATABASE_URL` unset. Check `.env` and that systemd is reading it. |
