@@ -339,6 +339,7 @@ Use `.backup` rather than `cp` — it is safe while the app is writing.
 | Symptom | Cause |
 |---|---|
 | **`404 Not Found nginx/… (Ubuntu)`** | The cafe reverse-proxy site is **not enabled**. nginx is answering with its own default page, not the app. A down app would be **502**, not 404. Fix: `sudo /var/www/cafe/deploy/fix-nginx.sh` (or finish `install.sh`). |
+| **`status=226/NAMESPACE` in `systemctl status cafe-lsaf`** | systemd sandbox setup failed — usually the app was never built (no `.next` directory) while the old unit listed only `.next` in `ReadWritePaths`, or `ProtectHome` blocked the app tree. Fix: `sudo -u cafe npm run build`, `sudo cp deploy/systemd/cafe-lsaf.service /etc/systemd/system/`, `sudo systemctl daemon-reload && sudo systemctl restart cafe-lsaf`. |
 | Login POST returns 200 but you stay logged out | No HTTPS yet — the `Secure` cookie is being dropped. Finish step 6. |
 | 502 Bad Gateway | App is not running. `systemctl status cafe-lsaf`, `journalctl -u cafe-lsaf -n 50`. |
 | `EADDRINUSE: address already in use 127.0.0.1:3003` | Something else holds the port — usually a leftover `next start`. `sudo ss -ltnp \| grep :3003`, stop it, then `sudo systemctl restart cafe-lsaf`. |

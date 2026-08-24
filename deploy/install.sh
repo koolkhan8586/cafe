@@ -128,6 +128,10 @@ fi
 
 echo "==> Building"
 sudo -u "$APP_USER" npm run build
+if [ ! -d .next ]; then
+  echo "ERROR: npm run build did not produce .next — systemd will fail to start." >&2
+  exit 1
+fi
 
 echo "==> Freeing port 3003 if a leftover next process holds it"
 if ss -ltnp 2>/dev/null | grep -q ':3003'; then
