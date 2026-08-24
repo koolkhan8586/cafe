@@ -294,6 +294,7 @@ Use `.backup` rather than `cp` — it is safe while the app is writing.
 
 | Symptom | Cause |
 |---|---|
+| **`404 Not Found nginx/… (Ubuntu)`** | The cafe reverse-proxy site is **not enabled**. nginx is answering with its own default page, not the app. A down app would be **502**, not 404. Fix: `sudo /var/www/cafe/deploy/fix-nginx.sh` (or finish `install.sh`). |
 | Login POST returns 200 but you stay logged out | No HTTPS yet — the `Secure` cookie is being dropped. Finish step 6. |
 | 502 Bad Gateway | App is not running. `systemctl status cafe-lsaf`, `journalctl -u cafe-lsaf -n 50`. |
 | `EADDRINUSE: address already in use 127.0.0.1:3003` | Something else holds the port — usually a leftover `next start`. `sudo ss -ltnp \| grep :3003`, stop it, then `sudo systemctl restart cafe-lsaf`. |
@@ -303,6 +304,29 @@ Use `.backup` rather than `cp` — it is safe while the app is writing.
 | WhatsApp alerts logged as `skipped` | `WAHA_BASE_URL` or the recipient is blank. Admin → WhatsApp. |
 | WhatsApp alerts logged as `failed` | WAHA unreachable, wrong API key, or the session is unpaired. Check the error text in the notification log. |
 | Native module error after a Node upgrade | `rm -rf node_modules package-lock.json && npm install`. |
+
+### Quick repair for the nginx 404
+
+On the VPS (DNS already points here):
+
+```bash
+cd /var/www/cafe   # clone first if missing
+sudo git pull
+sudo ./deploy/fix-nginx.sh
+# If that reports the app is down:
+sudo ./deploy/install.sh --skip-certbot   # first-time app+nginx
+# or, if the app was already installed:
+sudo systemctl restart cafe-lsaf
+sudo certbot --nginx -d cafe.khanmusa.com
+```
+
+Verify locally on the server:
+
+```bash
+curl -I http://127.0.0.1:3003/login              # app — expect 200
+curl -I -H 'Host: cafe.khanmusa.com' http://127.0.0.1/login  # nginx — expect 200/301
+```
+
 
 ---
 
