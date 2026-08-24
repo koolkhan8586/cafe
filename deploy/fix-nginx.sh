@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Repair nginx so cafe.khanmusa.com proxies to the Cafe LSAF app.
 #
+# No Docker — only nginx + the systemd-backed Node app on 127.0.0.1:3003.
+#
 # Symptom this fixes:
 #   "404 Not Found nginx/1.18.0 (Ubuntu)" in the browser
-# That page comes from nginx itself — it means the cafe reverse-proxy site is
-# not enabled (or another site is catching the Host). A working proxy with a
-# down app would be 502, not 404.
+# That page comes from nginx itself — it means cafe.khanmusa.com.conf was
+# never copied into /etc/nginx/sites-available (other sites there are fine).
+# A working proxy with a down app would be 502, not 404.
 #
 #   sudo /var/www/cafe/deploy/fix-nginx.sh
 #

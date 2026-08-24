@@ -128,16 +128,24 @@ WhatsApp is the nudge.
 
 ## Deploying to a domain
 
-For a real deployment behind a domain — nginx, TLS, a systemd service, WAHA on
-loopback, firewall and backups — follow **[deploy/DEPLOYMENT.md](deploy/DEPLOYMENT.md)**.
-It targets **`cafe.khanmusa.com`** on a Ubuntu VPS.
+For a real deployment behind nginx + systemd (TLS, firewall, backups) follow
+**[deploy/DEPLOYMENT.md](deploy/DEPLOYMENT.md)**. It targets **`cafe.khanmusa.com`**.
+**Docker is not required** for the cafe app.
 
 Fast path once DNS points at the server and Node 22+ is installed:
 
 ```bash
 sudo git clone <your-repo-url> /var/www/cafe
 cd /var/www/cafe
-sudo ./deploy/install.sh          # systemd + nginx + Let's Encrypt
+sudo ./deploy/install.sh          # systemd + nginx + Let's Encrypt (no Docker)
+```
+
+If nginx already has other sites but `cafe.khanmusa.com` is missing from
+`/etc/nginx/sites-available`:
+
+```bash
+cd /var/www/cafe
+sudo ./deploy/fix-nginx.sh
 ```
 
 **TLS is not optional.** The session cookie is issued with the `Secure` flag in

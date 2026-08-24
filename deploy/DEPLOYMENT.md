@@ -3,17 +3,26 @@
 A runbook for putting the app on a Ubuntu/Debian VPS behind nginx with a
 Let's Encrypt certificate. Assumes the repo is at `/var/www/cafe`.
 
+**Docker is not required.** The cafe app runs as a normal Node.js process under
+systemd (`cafe-lsaf`). nginx reverse-proxies to `127.0.0.1:3003`. Docker is
+only mentioned later as an *optional* way to run WAHA (WhatsApp); you can skip
+that entirely.
+
 Layout when you are done:
 
 ```
-browser ──https──> nginx :443 ──http──> app 127.0.0.1:3003
+browser ──https──> nginx :443 ──http──> app 127.0.0.1:3003  (systemd, not Docker)
                                           └─ SQLite /var/lib/cafe-lsaf/cafe.db
-                                          └─ WAHA  127.0.0.1:3001 (not public)
+                                          └─ WAHA  127.0.0.1:3001 (optional)
 ```
+
+The nginx site file does **not** appear under `/etc/nginx/sites-available`
+until you copy it from the repo (or run `install.sh` / `fix-nginx.sh`). Other
+sites in that directory are unrelated; `cafe.khanmusa.com` must be added.
 
 ---
 
-## Fast path (recommended)
+## Fast path (recommended, no Docker)
 
 Point DNS at the server first (step 1 below), install Node 22+, clone the
 repo, then let the installer do the rest — service user, `.env`, migrate,
@@ -30,7 +39,7 @@ sudo ./deploy/install.sh
 ```
 
 That puts the site on **https://cafe.khanmusa.com**. Then change the seeded
-PINs (step 9) and optionally start WAHA (step 7).
+PINs (step 9) and optionally start WAHA (step 7) if you want WhatsApp alerts.
 
 Useful flags:
 
@@ -40,6 +49,41 @@ Useful flags:
 | `--cloudflare` | Orange-cloud proxy; origin cert already on disk (see appendix) |
 | `--skip-seed` | Reinstall over an existing database |
 | `--domain other.example.com` | Different hostname (rewrites the nginx `server_name`) |
+
+### If nginx is already installed but cafe.khanmusa.com is missing
+
+You already have other sites in `/etc/nginx/sites-available` — that is fine.
+Copy the cafe files from the repo (still no Docker):
+
+```bash
+cd /var/www/cafe   # clone the repo here first if needed
+sudo git pull
+
+# 1) Shared proxy snippet → app on port 3003
+sudo cp deploy/nginx/cafe-proxy.conf /etc/nginx/snippets/
+
+# 2) Site config → sites-available (this is the missing file)
+sudo cp deploy/nginx/cafe.khanmusa.com.conf /etc/nginx/sites-available/
+
+# 3) Enable it
+sudo ln -sfn /etc/nginx/sites-available/cafe.khanmusa.com.conf \
+             /etc/nginx/sites-enabled/cafe.khanmusa.com.conf
+
+sudo nginx -t && sudo systemctl reload nginx
+ls /etc/nginx/sites-available/cafe.khanmusa.com.conf   # should exist now
+```
+
+Or in one step: `sudo ./deploy/fix-nginx.sh`
+
+Then make sure the Node app is running via systemd (not Docker):
+
+```bash
+curl -I http://127.0.0.1:3003/login    # expect 200
+# if that fails, finish the app install:
+sudo ./deploy/install.sh --skip-certbot
+# or only restart if already installed:
+sudo systemctl restart cafe-lsaf
+```
 
 The sections below are the same steps, expanded, if you prefer to run them
 by hand or need to diagnose a half-finished install.
