@@ -273,6 +273,8 @@ docker run -d --name waha --restart unless-stopped \
   -p 127.0.0.1:3001:3000 \
   -e WHATSAPP_API_KEY='<the same key you put in .env>' \
   -e WHATSAPP_RESTART_ALL_SESSIONS=True \
+  -e WHATSAPP_HOOK_URL='https://cafe.khanmusa.com/api/waha/webhook' \
+  -e WHATSAPP_HOOK_EVENTS=message \
   -v waha-sessions:/app/.sessions \
   devlikeapro/waha
 ```
@@ -289,6 +291,10 @@ ssh -L 3001:127.0.0.1:3001 root@<server-ip>
 Then in the app: sign in as admin → **WhatsApp** → set *Where order alerts go*
 (a number in international format with no `+`, or a group chat id ending
 `@g.us`) → **Test connection** → **Send test message**.
+
+Reply `ACCEPT 12`, `REJECT 12`, or `COUNTER` in that same WhatsApp chat.
+If WAHA was already running, recreate it with `WHATSAPP_HOOK_URL` as above
+(or set the webhook in the WAHA dashboard).
 
 ---
 

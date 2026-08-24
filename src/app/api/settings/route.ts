@@ -26,6 +26,7 @@ export async function PUT(request: Request) {
     for (const key of [
       "CAFE_NAME",
       "CURRENCY_SYMBOL",
+      "CAFE_PUBLIC_URL",
       "WAHA_BASE_URL",
       "WAHA_SESSION",
       "ADMIN_WHATSAPP_CHAT_ID",

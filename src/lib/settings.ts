@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 export const SETTING_KEYS = {
   cafeName: "CAFE_NAME",
   currency: "CURRENCY_SYMBOL",
+  publicUrl: "CAFE_PUBLIC_URL",
   wahaBaseUrl: "WAHA_BASE_URL",
   wahaApiKey: "WAHA_API_KEY",
   wahaSession: "WAHA_SESSION",
@@ -19,6 +20,7 @@ export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
 const DEFAULTS: Record<SettingKey, string> = {
   CAFE_NAME: "Cafe LSAF",
   CURRENCY_SYMBOL: "Rs",
+  CAFE_PUBLIC_URL: "https://cafe.khanmusa.com",
   WAHA_BASE_URL: "",
   WAHA_API_KEY: "",
   WAHA_SESSION: "default",

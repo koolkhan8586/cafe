@@ -237,7 +237,11 @@ function OrderCard({
               )}
               onClick={() => onMove(order, next)}
             >
-              {next === "CANCELLED" ? "Cancel" : `Mark ${STATUS_LABELS[next].toLowerCase()}`}
+              {next === "CANCELLED"
+                ? "Reject"
+                : next === "PREPARING"
+                  ? "Accept"
+                  : `Mark ${STATUS_LABELS[next].toLowerCase()}`}
             </button>
           ))}
         </div>
