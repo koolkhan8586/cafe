@@ -122,13 +122,12 @@ fi
 echo "==> Building"
 sudo -u "$APP_USER" npm run build
 
-echo "==> Freeing port 3000 if a leftover next process holds it"
-if ss -ltnp 2>/dev/null | grep -q ':3000'; then
+echo "==> Freeing port 3003 if a leftover next process holds it"
+if ss -ltnp 2>/dev/null | grep -q ':3003'; then
   # Prefer not to kill an already-running cafe-lsaf unit; stop it cleanly.
   if systemctl is-active --quiet "$SERVICE" 2>/dev/null; then
     systemctl stop "$SERVICE"
   else
-    pkill -f "next dev" 2>/dev/null || true
     pkill -f "next start" 2>/dev/null || true
     sleep 1
   fi
@@ -140,10 +139,10 @@ systemctl daemon-reload
 systemctl enable --now "$SERVICE"
 systemctl --no-pager --full status "$SERVICE" || true
 
-echo "==> Waiting for app on 127.0.0.1:3000"
+echo "==> Waiting for app on 127.0.0.1:3003"
 ok=0
 for _ in $(seq 1 30); do
-  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:3000/login || true)"
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:3003/login || true)"
   if [ "$code" = "200" ]; then
     ok=1
     break
