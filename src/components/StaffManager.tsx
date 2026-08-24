@@ -83,10 +83,11 @@ export function StaffManager({ initialStaff }: { initialStaff: StaffRow[] }) {
     setBusy(true);
     setMessage(null);
     try {
-      // The employee ID is the login handle and appears on past orders, so it
-      // is fixed after creation; only the editable fields go up on a PATCH.
+      // code is the login / HR SSO handle; admins may change it on edit.
+      // Past orders keep staffId, so history stays attached to the person.
       const payload = editingId
         ? {
+            code: draft.code,
             name: draft.name,
             department: draft.department,
             whatsapp: draft.whatsapp,
@@ -278,14 +279,12 @@ export function StaffManager({ initialStaff }: { initialStaff: StaffRow[] }) {
                 value={draft.code}
                 onChange={(e) => setDraft({ ...draft, code: e.target.value })}
                 placeholder="LSAF-006"
-                disabled={editingId !== null}
+                autoCapitalize="characters"
                 required
               />
-              {editingId ? (
-                <p className="mt-1 text-xs text-muted">
-                  The employee ID is the login handle and cannot be changed.
-                </p>
-              ) : null}
+              <p className="mt-1 text-xs text-muted">
+                Login handle and HR SSO match (e.g. LSAF-001). Must be unique.
+              </p>
             </div>
 
             <div>

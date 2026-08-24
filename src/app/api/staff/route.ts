@@ -3,7 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { ApiError, handleApiError, requireApiRole } from "@/lib/api-auth";
 import { hashSecret, minSecretLength } from "@/lib/auth";
 import { isRole, type Role } from "@/lib/types";
-import { normaliseWhatsapp, STAFF_SELECT } from "@/lib/staff-validation";
+import {
+  normaliseStaffCode,
+  normaliseWhatsapp,
+  STAFF_SELECT,
+} from "@/lib/staff-validation";
 
 export async function GET() {
   try {
@@ -23,7 +27,7 @@ export async function POST(request: Request) {
     await requireApiRole(["ADMIN"]);
     const body = (await request.json()) as Record<string, unknown>;
 
-    const code = String(body.code ?? "").trim().toUpperCase();
+    const code = normaliseStaffCode(body.code);
     const name = String(body.name ?? "").trim();
     const role = String(body.role ?? "EMPLOYEE").toUpperCase();
     const secret = String(body.secret ?? "");
@@ -47,7 +51,7 @@ export async function POST(request: Request) {
 
     const person = await prisma.staff.create({
       data: {
-        code: code.slice(0, 40),
+        code,
         name: name.slice(0, 120),
         department: String(body.department ?? "").trim().slice(0, 80) || null,
         whatsapp: normaliseWhatsapp(body.whatsapp),

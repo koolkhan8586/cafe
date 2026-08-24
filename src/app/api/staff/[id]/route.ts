@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ApiError, handleApiError, requireApiRole } from "@/lib/api-auth";
 import { hashSecret, minSecretLength } from "@/lib/auth";
+import { writeSession } from "@/lib/session";
 import { isRole, type Role } from "@/lib/types";
-import { normaliseWhatsapp, STAFF_SELECT } from "@/lib/staff-validation";
+import {
+  normaliseStaffCode,
+  normaliseWhatsapp,
+  STAFF_SELECT,
+} from "@/lib/staff-validation";
 
 export async function PATCH(
   request: Request,
@@ -18,6 +23,18 @@ export async function PATCH(
     if (!target) throw new ApiError(404, "That person no longer exists.");
 
     const data: Record<string, unknown> = {};
+
+    if (body.code !== undefined) {
+      const code = normaliseStaffCode(body.code);
+      if (!code) throw new ApiError(400, "Enter an employee ID.");
+      if (code !== target.code) {
+        const taken = await prisma.staff.findUnique({ where: { code } });
+        if (taken) {
+          throw new ApiError(409, `Employee ID ${code} is already taken.`);
+        }
+        data.code = code;
+      }
+    }
 
     if (body.name !== undefined) {
       const name = String(body.name).trim();
@@ -81,6 +98,22 @@ export async function PATCH(
       data,
       select: STAFF_SELECT,
     });
+
+    // Keep the signed-in admin's nav label in sync if they renamed their own ID.
+    if (
+      staff.id === actor.sub &&
+      (staff.code !== actor.code ||
+        staff.name !== actor.name ||
+        staff.role !== actor.role)
+    ) {
+      await writeSession({
+        sub: staff.id,
+        code: staff.code,
+        name: staff.name,
+        role: staff.role as Role,
+      });
+    }
+
     return NextResponse.json({ staff });
   } catch (error) {
     return handleApiError(error);

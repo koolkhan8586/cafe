@@ -9,6 +9,15 @@ export const STAFF_SELECT = {
   active: true,
 } as const;
 
+/** Login / SSO handle: trim, uppercase, max 40 chars. Empty → null. */
+export function normaliseStaffCode(raw: unknown): string | null {
+  const value = String(raw ?? "")
+    .trim()
+    .toUpperCase()
+    .slice(0, 40);
+  return value || null;
+}
+
 /** Digits only, no leading "+", which is the form WAHA expects. */
 export function normaliseWhatsapp(raw: unknown): string | null {
   const value = String(raw ?? "").trim();
