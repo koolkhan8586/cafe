@@ -133,16 +133,25 @@ if [ ! -d .next ]; then
   exit 1
 fi
 
-echo "==> Freeing port 3003 if a leftover next process holds it"
-if ss -ltnp 2>/dev/null | grep -q ':3003'; then
-  # Prefer not to kill an already-running cafe-lsaf unit; stop it cleanly.
-  if systemctl is-active --quiet "$SERVICE" 2>/dev/null; then
-    systemctl stop "$SERVICE"
-  else
-    pkill -f "next start" 2>/dev/null || true
-    sleep 1
+echo "==> Freeing ports 3000 and 3003 if a leftover next process holds them"
+for port in 3000 3003; do
+  if ss -ltnp 2>/dev/null | grep -q ":${port} "; then
+    if systemctl is-active --quiet "$SERVICE" 2>/dev/null; then
+      systemctl stop "$SERVICE"
+    else
+      pkill -f "next start" 2>/dev/null || true
+      pkill -f "next dev" 2>/dev/null || true
+      sleep 1
+    fi
   fi
+done
+# Next.js reads PORT from .env and ignores -p; keep it on 3003.
+if grep -q '^PORT=' .env 2>/dev/null; then
+  sed -i 's|^PORT=.*|PORT=3003|' .env
+else
+  echo 'PORT=3003' >> .env
 fi
+chown "$APP_USER:$APP_USER" .env
 
 echo "==> Installing systemd unit"
 cp deploy/systemd/cafe-lsaf.service /etc/systemd/system/
