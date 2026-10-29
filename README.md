@@ -26,7 +26,9 @@ outcome.
 order at the counter for a staff member or a walk-in. Orders are settled by
 cash, JazzCash or credit: a credit order posts a charge to that person's
 ledger, and the counter records payments against it later. Cash and JazzCash
-are money received and never touch the ledger. Expenses are tracked separately by category, and the
+are money received and never touch the ledger. Expenses are tracked by category — the categories are editable from the
+Expenses page, and renaming or retiring one never changes what past expenses
+were filed as. The
 sales page splits revenue into cash, JazzCash and credit (still owed).
 
 **Cafe manager** — revenue, profit, order count and average order over any date

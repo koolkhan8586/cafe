@@ -3,13 +3,16 @@ import { prisma } from "@/lib/prisma";
 import { ApiError, handleApiError, requireApiRole } from "@/lib/api-auth";
 import { parseMoney } from "@/lib/money";
 import { rangeFromParams } from "@/lib/reports";
-import { EXPENSE_CATEGORIES } from "@/lib/types";
 
-function parseExpense(body: Record<string, unknown>) {
+
+async function parseExpense(body: Record<string, unknown>) {
   const category = String(body.category ?? "").trim();
-  if (!(EXPENSE_CATEGORIES as readonly string[]).includes(category)) {
-    throw new ApiError(400, "Pick a valid category.");
-  }
+  // Validated against the live table so an admin's own category is accepted,
+  // while a retired or unknown one is not.
+  const known = await prisma.expenseCategory.findFirst({
+    where: { name: category, active: true },
+  });
+  if (!known) throw new ApiError(400, "Pick a valid category.");
 
   const amount = parseMoney(body.amount as string | number);
   if (amount === null || amount <= 0) {
@@ -68,7 +71,7 @@ export async function POST(request: Request) {
   try {
     const user = await requireApiRole(["ADMIN", "MANAGER"]);
     const body = (await request.json()) as Record<string, unknown>;
-    const data = parseExpense(body);
+    const data = await parseExpense(body);
 
     const expense = await prisma.expense.create({
       data: { ...data, createdById: user.sub },

@@ -5,7 +5,11 @@ import { formatMoney } from "@/lib/money";
 import { rangeFromParams, toDateInput } from "@/lib/reports";
 import { PageHeader, Stat } from "@/components/ui";
 import { RangePicker } from "@/components/RangePicker";
-import { ExpenseManager, type ExpenseRow } from "@/components/ExpenseManager";
+import {
+  ExpenseManager,
+  type CategoryRow,
+  type ExpenseRow,
+} from "@/components/ExpenseManager";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +23,16 @@ export default async function ExpensesPage({
   const params = await searchParams;
   const range = rangeFromParams(params.from, params.to);
 
-  const [settings, expenses] = await Promise.all([
+  const [settings, expenses, categories] = await Promise.all([
     getSettings(),
     prisma.expense.findMany({
       where: { spentAt: { gte: range.from, lte: range.to } },
       include: { createdBy: { select: { name: true } } },
       orderBy: [{ spentAt: "desc" }, { createdAt: "desc" }],
+    }),
+    prisma.expenseCategory.findMany({
+      orderBy: [{ active: "desc" }, { sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, active: true },
     }),
   ]);
 
@@ -86,7 +94,11 @@ export default async function ExpensesPage({
       </div>
 
       <div className="mt-6">
-        <ExpenseManager initialExpenses={rows} currency={currency} />
+        <ExpenseManager
+          initialExpenses={rows}
+          initialCategories={categories as CategoryRow[]}
+          currency={currency}
+        />
       </div>
     </>
   );

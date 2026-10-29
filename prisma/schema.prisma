@@ -143,10 +143,27 @@ model LedgerEntry {
   @@index([orderId])
 }
 
+/// Categories offered in the expense form. Editable by an admin or manager.
+///
+/// Expense.category stores the NAME rather than a foreign key, so retiring or
+/// renaming a category here never rewrites what past expenses were filed as.
+/// This table only drives the dropdown and the ordering.
+model ExpenseCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  /// Retired categories stay for history but drop out of the dropdown.
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+}
+
 /// Money going out: supplies, rent, utilities and so on.
 model Expense {
   id          String   @id @default(cuid())
-  /// One of EXPENSE_CATEGORIES in src/lib/types.ts.
+  /// Snapshot of the ExpenseCategory name at the time it was filed.
   category    String
   amount      Int
   /// The day the money was spent, which is not always the day it was entered.
