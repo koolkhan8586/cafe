@@ -56,7 +56,7 @@ Then:
 ```bash
 npm install
 npm run setup      # migrate + generate + seed
-npm run dev        # http://localhost:3000
+npm run dev        # http://localhost:3000 (or PORT from your .env)
 ```
 
 That works with no configuration — it creates `dev.db` in the project root and
