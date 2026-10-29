@@ -22,6 +22,13 @@ and manages the menu (including each item's cost price), the staff list and PIN
 resets, and the WhatsApp connection. Every WhatsApp attempt is logged with its
 outcome.
 
+**Counter orders, ledger and expenses** — an admin or manager can ring up an
+order at the counter for a staff member or a walk-in. Orders are settled by
+cash, JazzCash or credit: a credit order posts a charge to that person's
+ledger, and the counter records payments against it later. Cash and JazzCash
+are money received and never touch the ledger. Expenses are tracked separately by category, and the
+sales page splits revenue into cash, JazzCash and credit (still owed).
+
 **Cafe manager** — revenue, profit, order count and average order over any date
 range; revenue and profit per day as a chart; top sellers; revenue by department
 and by employee. A separate Costs & margin page gives per-item price, cost,
@@ -50,7 +57,7 @@ Then:
 ```bash
 npm install
 npm run setup      # migrate + generate + seed
-npm run dev        # http://localhost:3000
+npm run dev        # http://localhost:3000 (or PORT from your .env)
 ```
 
 That works with no configuration — it creates `dev.db` in the project root and

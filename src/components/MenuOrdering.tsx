@@ -1,8 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/money";
+import {
+  PAYMENT_METHODS,
+  PAYMENT_SHORT_LABELS,
+  isSettledMethod,
+  type PaymentMethod,
+} from "@/lib/types";
 import {
   Card,
   buttonPrimary,
@@ -33,18 +39,38 @@ type SubmitState =
   | { kind: "done"; orderId: number; whatsapp: "SENT" | "SKIPPED" | "FAILED" }
   | { kind: "error"; message: string };
 
+export type StaffOption = { id: string; code: string; name: string };
+
 export function MenuOrdering({
   categories,
   currency,
+  /** Admin/manager counter mode: order on behalf of staff or a walk-in. */
+  staffOptions,
 }: {
   categories: MenuCategory[];
   currency: string;
+  staffOptions?: StaffOption[];
 }) {
+  const counterMode = Array.isArray(staffOptions);
   const router = useRouter();
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [orderNotes, setOrderNotes] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>(categories[0]?.id ?? "");
   const [state, setState] = useState<SubmitState>({ kind: "idle" });
+  const [payment, setPayment] = useState<PaymentMethod>("CASH");
+  // Scroll target for the mobile summary bar.
+  const cartRef = useRef<HTMLElement | null>(null);
+  // Counter mode only: "" means a walk-in, identified by customerName.
+  const [forStaffId, setForStaffId] = useState<string>(
+    staffOptions && staffOptions.length > 0 ? staffOptions[0].id : "",
+  );
+  const [customerName, setCustomerName] = useState("");
+
+  // A walk-in has no account, so credit is not an option for them.
+  const walkIn = counterMode && forStaffId === "";
+  // A walk-in has no account, so an unsettled method falls back to cash.
+  const effectivePayment: PaymentMethod =
+    walkIn && !isSettledMethod(payment) ? "CASH" : payment;
 
   const lines = useMemo(() => Object.values(cart), [cart]);
   const total = useMemo(
@@ -93,6 +119,9 @@ export function MenuOrdering({
             notes: line.notes.trim() || undefined,
           })),
           notes: orderNotes.trim() || undefined,
+          paymentMethod: effectivePayment,
+          ...(counterMode && !walkIn ? { staffId: forStaffId } : {}),
+          ...(walkIn ? { customerName: customerName.trim() || "Walk-in" } : {}),
         }),
       });
       const data = (await res.json()) as {
@@ -208,7 +237,7 @@ export function MenuOrdering({
         </div>
       </div>
 
-      <aside className="lg:sticky lg:top-24 lg:self-start">
+      <aside ref={cartRef} className="lg:sticky lg:top-24 lg:self-start">
         <Card className="p-4">
           <h2 className="font-semibold">
             Your order{" "}
@@ -248,6 +277,74 @@ export function MenuOrdering({
 
           {lines.length > 0 ? (
             <>
+              {counterMode ? (
+                <div className="mt-4">
+                  <label className="mb-1.5 block text-sm font-medium" htmlFor="for-staff">
+                    Who is this for
+                  </label>
+                  <select
+                    id="for-staff"
+                    className={inputClass}
+                    value={forStaffId}
+                    onChange={(e) => setForStaffId(e.target.value)}
+                  >
+                    {staffOptions!.map((person) => (
+                      <option key={person.id} value={person.id}>
+                        {person.name} ({person.code})
+                      </option>
+                    ))}
+                    <option value="">Walk-in customer</option>
+                  </select>
+
+                  {walkIn ? (
+                    <input
+                      className={`${inputClass} mt-2`}
+                      placeholder="Customer name (optional)"
+                      value={customerName}
+                      maxLength={120}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      aria-label="Walk-in customer name"
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+
+              <fieldset className="mt-4">
+                <legend className="mb-1.5 text-sm font-medium">Payment</legend>
+                <div className="grid grid-cols-3 gap-2">
+                  {PAYMENT_METHODS.map((method) => {
+                    const disabled = walkIn && !isSettledMethod(method);
+                    return (
+                      <button
+                        key={method}
+                        type="button"
+                        disabled={disabled}
+                        aria-pressed={effectivePayment === method}
+                        onClick={() => setPayment(method)}
+                        className={cn(
+                          "rounded-lg border px-2 py-2 text-sm font-medium transition",
+                          effectivePayment === method
+                            ? "border-brand bg-brand-soft text-brand-strong"
+                            : "border-border-subtle hover:bg-surface-muted",
+                          disabled && "cursor-not-allowed opacity-50",
+                        )}
+                      >
+                        {PAYMENT_SHORT_LABELS[method]}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1 text-xs text-muted">
+                  {walkIn && !isSettledMethod(payment)
+                    ? "A walk-in has no account, so this is a cash sale."
+                    : !isSettledMethod(effectivePayment)
+                      ? "This goes on the staff ledger to settle later."
+                      : effectivePayment === "JAZZCASH"
+                        ? "Received over JazzCash."
+                        : "Paid at the counter now."}
+                </p>
+              </fieldset>
+
               <div className="mt-4">
                 <label className="mb-1.5 block text-sm font-medium" htmlFor="order-notes">
                   Note for the counter
@@ -298,7 +395,39 @@ export function MenuOrdering({
             </div>
           ) : null}
         </Card>
+        {/* Breathing room so the fixed mobile bar cannot cover the last
+            control in the cart. */}
+        <div aria-hidden className="h-20 lg:hidden" />
       </aside>
+
+      {/* Mobile summary bar: the cart sits below the menu on a phone, so
+          without this the running total is off-screen while ordering. */}
+      {itemCount > 0 ? (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border-subtle bg-surface/95 backdrop-blur lg:hidden">
+          <div className="flex items-center gap-3 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <div className="min-w-0 leading-tight">
+              <p className="text-xs text-muted">
+                {itemCount} item{itemCount === 1 ? "" : "s"}
+              </p>
+              <p className="truncate text-lg font-semibold tabular-nums">
+                {formatMoney(total, currency)}
+              </p>
+            </div>
+            <button
+              type="button"
+              className={`${buttonPrimary} ml-auto shrink-0`}
+              onClick={() =>
+                cartRef.current?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                })
+              }
+            >
+              Review order
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

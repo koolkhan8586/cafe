@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { REVENUE_STATUSES } from "@/lib/types";
+import { isSettledMethod, REVENUE_STATUSES } from "@/lib/types";
 
 /**
  * Reporting rules used everywhere in the manager section:
@@ -59,9 +59,28 @@ export type SalesSummary = {
   itemCount: number;
   averageOrder: number;
   cancelledCount: number;
+  /** Settled in physical cash. */
+  cashRevenue: number;
+  /** Settled over JazzCash. */
+  jazzcashRevenue: number;
+  /** Revenue put on staff accounts in this period. Not money in hand yet. */
+  creditRevenue: number;
+  cashOrderCount: number;
+  jazzcashOrderCount: number;
+  creditOrderCount: number;
+  /** Expenses dated inside the range. Reported separately from profit. */
+  expenses: number;
 };
 
-export type DailyPoint = { date: string; revenue: number; profit: number; orders: number };
+export type DailyPoint = {
+  date: string;
+  revenue: number;
+  profit: number;
+  orders: number;
+  cashRevenue: number;
+  jazzcashRevenue: number;
+  creditRevenue: number;
+};
 export type TopItem = {
   name: string;
   qty: number;
@@ -100,6 +119,19 @@ export async function buildSalesReport(range: DateRange): Promise<SalesReport> {
   const cancelledCount = orders.length - counted.length;
 
   const revenue = counted.reduce((sum, o) => sum + o.subtotal, 0);
+  const cashOrders = counted.filter((o) => o.paymentMethod === "CASH");
+  const jazzcashOrders = counted.filter((o) => o.paymentMethod === "JAZZCASH");
+  // Anything that is not a settled method is owed. Written this way round so
+  // that an unrecognised value counts as credit rather than as money in hand.
+  const creditOrders = counted.filter((o) => !isSettledMethod(o.paymentMethod));
+  const cashRevenue = cashOrders.reduce((sum, o) => sum + o.subtotal, 0);
+  const jazzcashRevenue = jazzcashOrders.reduce((sum, o) => sum + o.subtotal, 0);
+  const creditRevenue = creditOrders.reduce((sum, o) => sum + o.subtotal, 0);
+  const expenseRows = await prisma.expense.findMany({
+    where: { spentAt: { gte: range.from, lte: range.to } },
+    select: { amount: true },
+  });
+  const expenses = expenseRows.reduce((sum, e) => sum + e.amount, 0);
   const cost = counted.reduce((sum, o) => sum + o.totalCost, 0);
   const itemCount = counted.reduce(
     (sum, o) => sum + o.items.reduce((n, i) => n + i.qty, 0),
@@ -113,10 +145,27 @@ export async function buildSalesReport(range: DateRange): Promise<SalesReport> {
 
   for (const order of counted) {
     const day = toDateInput(order.createdAt);
-    const point = dailyMap.get(day) ?? { date: day, revenue: 0, profit: 0, orders: 0 };
+    const point =
+      dailyMap.get(day) ??
+      {
+        date: day,
+        revenue: 0,
+        profit: 0,
+        orders: 0,
+        cashRevenue: 0,
+        jazzcashRevenue: 0,
+        creditRevenue: 0,
+      };
     point.revenue += order.subtotal;
     point.profit += order.subtotal - order.totalCost;
     point.orders += 1;
+    if (!isSettledMethod(order.paymentMethod)) {
+      point.creditRevenue += order.subtotal;
+    } else if (order.paymentMethod === "JAZZCASH") {
+      point.jazzcashRevenue += order.subtotal;
+    } else {
+      point.cashRevenue += order.subtotal;
+    }
     dailyMap.set(day, point);
 
     for (const item of order.items) {
@@ -130,25 +179,40 @@ export async function buildSalesReport(range: DateRange): Promise<SalesReport> {
       itemMap.set(item.nameSnapshot, entry);
     }
 
-    // Fall back to the employee's current department for orders placed before
-    // the snapshot column existed.
-    const dept = order.department ?? order.staff.department ?? "Unassigned";
+    // A walk-in order hangs off whoever rang it up, because Order.staffId is
+    // required — but reporting it as that person's spending would be wrong.
+    // Bucket it under "Walk-in" instead.
+    const isWalkIn = Boolean(order.customerName);
+
+    const dept = isWalkIn
+      ? "Walk-in"
+      : (order.department ?? order.staff.department ?? "Unassigned");
     const deptRow = deptMap.get(dept) ?? { department: dept, orders: 0, revenue: 0 };
     deptRow.orders += 1;
     deptRow.revenue += order.subtotal;
     deptMap.set(dept, deptRow);
 
+    const staffKey = isWalkIn ? "__WALK_IN__" : order.staff.code;
     const staffRow =
-      staffMap.get(order.staff.code) ?? {
-        name: order.staff.name,
-        code: order.staff.code,
-        department: order.staff.department,
-        orders: 0,
-        revenue: 0,
-      };
+      staffMap.get(staffKey) ??
+      (isWalkIn
+        ? {
+            name: "Walk-in customers",
+            code: "—",
+            department: null,
+            orders: 0,
+            revenue: 0,
+          }
+        : {
+            name: order.staff.name,
+            code: order.staff.code,
+            department: order.staff.department,
+            orders: 0,
+            revenue: 0,
+          });
     staffRow.orders += 1;
     staffRow.revenue += order.subtotal;
-    staffMap.set(order.staff.code, staffRow);
+    staffMap.set(staffKey, staffRow);
   }
 
   return {
@@ -160,6 +224,13 @@ export async function buildSalesReport(range: DateRange): Promise<SalesReport> {
       itemCount,
       averageOrder: counted.length ? Math.round(revenue / counted.length) : 0,
       cancelledCount,
+      cashRevenue,
+      jazzcashRevenue,
+      creditRevenue,
+      cashOrderCount: cashOrders.length,
+      jazzcashOrderCount: jazzcashOrders.length,
+      creditOrderCount: creditOrders.length,
+      expenses,
     },
     daily: [...dailyMap.values()].sort((a, b) => a.date.localeCompare(b.date)),
     topItems: [...itemMap.values()].sort((a, b) => b.revenue - a.revenue),

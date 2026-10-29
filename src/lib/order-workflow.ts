@@ -39,13 +39,27 @@ export async function applyOrderStatus(id: number, next: OrderStatus) {
     );
   }
 
-  const updated = await prisma.order.update({
-    where: { id },
-    data: {
-      status: next,
-      completedAt: next === "COMPLETED" ? new Date() : order.completedAt,
-    },
-    include: ORDER_INCLUDE,
+  const updated = await prisma.$transaction(async (tx) => {
+    const result = await tx.order.update({
+      where: { id },
+      data: {
+        status: next,
+        completedAt: next === "COMPLETED" ? new Date() : order.completedAt,
+      },
+      include: ORDER_INCLUDE,
+    });
+
+    // Cancelling a credit order removes its ledger charge outright rather
+    // than posting a reversal: the charge should never have existed, and
+    // leaving it would bill someone for food they never received. The
+    // cancelled order itself remains as the record of what happened.
+    if (next === "CANCELLED") {
+      await tx.ledgerEntry.deleteMany({
+        where: { orderId: id, type: "CHARGE" },
+      });
+    }
+
+    return result;
   });
 
   const notification = await notifyEmployeeOfStatus(

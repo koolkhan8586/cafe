@@ -2,7 +2,12 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 import { formatMoney } from "@/lib/money";
-import { STATUS_LABELS, type OrderStatus } from "@/lib/types";
+import {
+  PAYMENT_LABELS,
+  STATUS_LABELS,
+  type OrderStatus,
+  type PaymentMethod,
+} from "@/lib/types";
 
 /**
  * Thin client for WAHA (WhatsApp HTTP API, https://waha.devlike.pro).
@@ -155,6 +160,10 @@ type OrderForMessage = {
   subtotal: number;
   notes: string | null;
   createdAt: Date;
+  paymentMethod?: string;
+  /// Set when a walk-in was rung up, in which case `staff` is whoever took
+  /// the order rather than the person it is for.
+  customerName?: string | null;
   staff: { name: string; code: string; department: string | null };
   items: { nameSnapshot: string; qty: number; lineTotal: number; notes: string | null }[];
 };
@@ -172,13 +181,21 @@ export async function notifyAdminOfOrder(order: OrderForMessage): Promise<SendRe
   const body = [
     `*${settings.CAFE_NAME} — New order #${order.id}*`,
     "",
-    `👤 ${order.staff.name} (${order.staff.code})`,
-    order.staff.department ? `🏢 ${order.staff.department}` : null,
+    order.customerName
+      ? `👤 ${order.customerName} (walk-in, rung up by ${order.staff.name})`
+      : `👤 ${order.staff.name} (${order.staff.code})`,
+    order.customerName || !order.staff.department
+      ? null
+      : `🏢 ${order.staff.department}`,
     `🕒 ${order.createdAt.toLocaleString("en-GB")}`,
     "",
     ...lines,
     "",
     `*Total: ${formatMoney(order.subtotal, currency)}*`,
+    // The counter needs to know at a glance whether this is already paid.
+    order.paymentMethod
+      ? `💳 ${PAYMENT_LABELS[order.paymentMethod as PaymentMethod] ?? order.paymentMethod}`
+      : null,
     order.notes ? `\n📝 Note: ${order.notes}` : null,
     "",
     "Reply from this chat:",
