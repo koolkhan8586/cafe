@@ -35,15 +35,33 @@ export const REVENUE_STATUSES: OrderStatus[] = [
   "COMPLETED",
 ];
 
-/// How an order was settled. A credit order posts a CHARGE to the staff
-/// ledger; a cash order is paid at the counter and never touches it.
-export const PAYMENT_METHODS = ["CASH", "CREDIT"] as const;
+/// How an order was settled. CREDIT posts a CHARGE to the staff ledger;
+/// every other method is money received at the time of the order and never
+/// touches the ledger.
+export const PAYMENT_METHODS = ["CASH", "JAZZCASH", "CREDIT"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   CASH: "Cash",
+  JAZZCASH: "JazzCash",
   CREDIT: "Credit (on account)",
 };
+
+/// Short label for buttons and tables, where the parenthetical is noise.
+export const PAYMENT_SHORT_LABELS: Record<PaymentMethod, string> = {
+  CASH: "Cash",
+  JAZZCASH: "JazzCash",
+  CREDIT: "On account",
+};
+
+/// Methods that settle immediately. Anything not listed here is owed, and
+/// adding a future method to PAYMENT_METHODS without adding it here keeps the
+/// safe default: it will not be counted as money received.
+export const SETTLED_METHODS: PaymentMethod[] = ["CASH", "JAZZCASH"];
+
+export function isSettledMethod(value: string): boolean {
+  return (SETTLED_METHODS as readonly string[]).includes(value);
+}
 
 /// CHARGE and ADJUSTMENT increase what someone owes; PAYMENT reduces it.
 /// CHARGE and PAYMENT are always stored positive. ADJUSTMENT may be negative,

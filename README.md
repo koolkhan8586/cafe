@@ -23,10 +23,11 @@ resets, and the WhatsApp connection. Every WhatsApp attempt is logged with its
 outcome.
 
 **Counter orders, ledger and expenses** — an admin or manager can ring up an
-order at the counter for a staff member or a walk-in. Orders are cash or credit:
-a credit order posts a charge to that person's ledger, and the counter records
-payments against it later. Expenses are tracked separately by category, and the
-sales page splits revenue into cash (money in hand) and credit (still owed).
+order at the counter for a staff member or a walk-in. Orders are settled by
+cash, JazzCash or credit: a credit order posts a charge to that person's
+ledger, and the counter records payments against it later. Cash and JazzCash
+are money received and never touch the ledger. Expenses are tracked separately by category, and the
+sales page splits revenue into cash, JazzCash and credit (still owed).
 
 **Cafe manager** — revenue, profit, order count and average order over any date
 range; revenue and profit per day as a chart; top sellers; revenue by department

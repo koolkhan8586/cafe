@@ -65,11 +65,16 @@ export default async function ManagerPage({
         />
       </div>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           label="Cash sales"
           value={formatMoney(summary.cashRevenue, currency)}
           hint={`${summary.cashOrderCount} ${summary.cashOrderCount === 1 ? "order" : "orders"} · money in hand`}
+        />
+        <Stat
+          label="JazzCash sales"
+          value={formatMoney(summary.jazzcashRevenue, currency)}
+          hint={`${summary.jazzcashOrderCount} ${summary.jazzcashOrderCount === 1 ? "order" : "orders"} · received`}
         />
         <Stat
           label="Credit sales"

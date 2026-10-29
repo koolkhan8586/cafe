@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { REVENUE_STATUSES } from "@/lib/types";
+import { isSettledMethod, REVENUE_STATUSES } from "@/lib/types";
 
 /**
  * Reporting rules used everywhere in the manager section:
@@ -59,11 +59,14 @@ export type SalesSummary = {
   itemCount: number;
   averageOrder: number;
   cancelledCount: number;
-  /** Revenue settled at the counter. */
+  /** Settled in physical cash. */
   cashRevenue: number;
+  /** Settled over JazzCash. */
+  jazzcashRevenue: number;
   /** Revenue put on staff accounts in this period. Not money in hand yet. */
   creditRevenue: number;
   cashOrderCount: number;
+  jazzcashOrderCount: number;
   creditOrderCount: number;
   /** Expenses dated inside the range. Reported separately from profit. */
   expenses: number;
@@ -75,6 +78,7 @@ export type DailyPoint = {
   profit: number;
   orders: number;
   cashRevenue: number;
+  jazzcashRevenue: number;
   creditRevenue: number;
 };
 export type TopItem = {
@@ -115,9 +119,13 @@ export async function buildSalesReport(range: DateRange): Promise<SalesReport> {
   const cancelledCount = orders.length - counted.length;
 
   const revenue = counted.reduce((sum, o) => sum + o.subtotal, 0);
-  const cashOrders = counted.filter((o) => o.paymentMethod !== "CREDIT");
-  const creditOrders = counted.filter((o) => o.paymentMethod === "CREDIT");
+  const cashOrders = counted.filter((o) => o.paymentMethod === "CASH");
+  const jazzcashOrders = counted.filter((o) => o.paymentMethod === "JAZZCASH");
+  // Anything that is not a settled method is owed. Written this way round so
+  // that an unrecognised value counts as credit rather than as money in hand.
+  const creditOrders = counted.filter((o) => !isSettledMethod(o.paymentMethod));
   const cashRevenue = cashOrders.reduce((sum, o) => sum + o.subtotal, 0);
+  const jazzcashRevenue = jazzcashOrders.reduce((sum, o) => sum + o.subtotal, 0);
   const creditRevenue = creditOrders.reduce((sum, o) => sum + o.subtotal, 0);
   const expenseRows = await prisma.expense.findMany({
     where: { spentAt: { gte: range.from, lte: range.to } },
@@ -145,13 +153,16 @@ export async function buildSalesReport(range: DateRange): Promise<SalesReport> {
         profit: 0,
         orders: 0,
         cashRevenue: 0,
+        jazzcashRevenue: 0,
         creditRevenue: 0,
       };
     point.revenue += order.subtotal;
     point.profit += order.subtotal - order.totalCost;
     point.orders += 1;
-    if (order.paymentMethod === "CREDIT") {
+    if (!isSettledMethod(order.paymentMethod)) {
       point.creditRevenue += order.subtotal;
+    } else if (order.paymentMethod === "JAZZCASH") {
+      point.jazzcashRevenue += order.subtotal;
     } else {
       point.cashRevenue += order.subtotal;
     }
@@ -214,8 +225,10 @@ export async function buildSalesReport(range: DateRange): Promise<SalesReport> {
       averageOrder: counted.length ? Math.round(revenue / counted.length) : 0,
       cancelledCount,
       cashRevenue,
+      jazzcashRevenue,
       creditRevenue,
       cashOrderCount: cashOrders.length,
+      jazzcashOrderCount: jazzcashOrders.length,
       creditOrderCount: creditOrders.length,
       expenses,
     },

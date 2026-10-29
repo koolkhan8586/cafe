@@ -1,8 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/money";
+import {
+  PAYMENT_METHODS,
+  PAYMENT_SHORT_LABELS,
+  isSettledMethod,
+  type PaymentMethod,
+} from "@/lib/types";
 import {
   Card,
   buttonPrimary,
@@ -51,7 +57,9 @@ export function MenuOrdering({
   const [orderNotes, setOrderNotes] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>(categories[0]?.id ?? "");
   const [state, setState] = useState<SubmitState>({ kind: "idle" });
-  const [payment, setPayment] = useState<"CASH" | "CREDIT">("CASH");
+  const [payment, setPayment] = useState<PaymentMethod>("CASH");
+  // Scroll target for the mobile summary bar.
+  const cartRef = useRef<HTMLElement | null>(null);
   // Counter mode only: "" means a walk-in, identified by customerName.
   const [forStaffId, setForStaffId] = useState<string>(
     staffOptions && staffOptions.length > 0 ? staffOptions[0].id : "",
@@ -60,7 +68,9 @@ export function MenuOrdering({
 
   // A walk-in has no account, so credit is not an option for them.
   const walkIn = counterMode && forStaffId === "";
-  const effectivePayment: "CASH" | "CREDIT" = walkIn ? "CASH" : payment;
+  // A walk-in has no account, so an unsettled method falls back to cash.
+  const effectivePayment: PaymentMethod =
+    walkIn && !isSettledMethod(payment) ? "CASH" : payment;
 
   const lines = useMemo(() => Object.values(cart), [cart]);
   const total = useMemo(
@@ -227,7 +237,7 @@ export function MenuOrdering({
         </div>
       </div>
 
-      <aside className="lg:sticky lg:top-24 lg:self-start">
+      <aside ref={cartRef} className="lg:sticky lg:top-24 lg:self-start">
         <Card className="p-4">
           <h2 className="font-semibold">
             Your order{" "}
@@ -301,9 +311,9 @@ export function MenuOrdering({
 
               <fieldset className="mt-4">
                 <legend className="mb-1.5 text-sm font-medium">Payment</legend>
-                <div className="flex gap-2">
-                  {(["CASH", "CREDIT"] as const).map((method) => {
-                    const disabled = method === "CREDIT" && walkIn;
+                <div className="grid grid-cols-3 gap-2">
+                  {PAYMENT_METHODS.map((method) => {
+                    const disabled = walkIn && !isSettledMethod(method);
                     return (
                       <button
                         key={method}
@@ -312,24 +322,26 @@ export function MenuOrdering({
                         aria-pressed={effectivePayment === method}
                         onClick={() => setPayment(method)}
                         className={cn(
-                          "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition",
+                          "rounded-lg border px-2 py-2 text-sm font-medium transition",
                           effectivePayment === method
                             ? "border-brand bg-brand-soft text-brand-strong"
                             : "border-border-subtle hover:bg-surface-muted",
                           disabled && "cursor-not-allowed opacity-50",
                         )}
                       >
-                        {method === "CASH" ? "Cash" : "On account"}
+                        {PAYMENT_SHORT_LABELS[method]}
                       </button>
                     );
                   })}
                 </div>
                 <p className="mt-1 text-xs text-muted">
-                  {walkIn
+                  {walkIn && !isSettledMethod(payment)
                     ? "A walk-in has no account, so this is a cash sale."
-                    : effectivePayment === "CREDIT"
+                    : !isSettledMethod(effectivePayment)
                       ? "This goes on the staff ledger to settle later."
-                      : "Paid at the counter now."}
+                      : effectivePayment === "JAZZCASH"
+                        ? "Received over JazzCash."
+                        : "Paid at the counter now."}
                 </p>
               </fieldset>
 
@@ -383,7 +395,39 @@ export function MenuOrdering({
             </div>
           ) : null}
         </Card>
+        {/* Breathing room so the fixed mobile bar cannot cover the last
+            control in the cart. */}
+        <div aria-hidden className="h-20 lg:hidden" />
       </aside>
+
+      {/* Mobile summary bar: the cart sits below the menu on a phone, so
+          without this the running total is off-screen while ordering. */}
+      {itemCount > 0 ? (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border-subtle bg-surface/95 backdrop-blur lg:hidden">
+          <div className="flex items-center gap-3 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <div className="min-w-0 leading-tight">
+              <p className="text-xs text-muted">
+                {itemCount} item{itemCount === 1 ? "" : "s"}
+              </p>
+              <p className="truncate text-lg font-semibold tabular-nums">
+                {formatMoney(total, currency)}
+              </p>
+            </div>
+            <button
+              type="button"
+              className={`${buttonPrimary} ml-auto shrink-0`}
+              onClick={() =>
+                cartRef.current?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                })
+              }
+            >
+              Review order
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

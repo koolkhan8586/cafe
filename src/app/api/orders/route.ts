@@ -5,6 +5,7 @@ import { notifyAdminOfOrder } from "@/lib/waha";
 import {
   isOrderStatus,
   isPaymentMethod,
+  isSettledMethod,
   type OrderStatus,
   type PaymentMethod,
 } from "@/lib/types";
@@ -142,13 +143,13 @@ export async function POST(request: Request) {
     let paymentMethod: PaymentMethod = "CASH";
     if (body.paymentMethod !== undefined) {
       if (!isPaymentMethod(body.paymentMethod)) {
-        throw new ApiError(400, "Payment must be cash or credit.");
+        throw new ApiError(400, "Payment must be cash, JazzCash or credit.");
       }
       paymentMethod = body.paymentMethod;
     }
 
     // A walk-in has no account to charge, so credit is meaningless for them.
-    if (customerName && paymentMethod === "CREDIT") {
+    if (customerName && !isSettledMethod(paymentMethod)) {
       throw new ApiError(
         400,
         "A walk-in order cannot go on credit — there is no account to charge.",
@@ -195,7 +196,7 @@ export async function POST(request: Request) {
         },
       });
 
-      if (paymentMethod === "CREDIT") {
+      if (!isSettledMethod(paymentMethod)) {
         await tx.ledgerEntry.create({
           data: {
             staffId: staff.id,
