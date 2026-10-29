@@ -3,16 +3,22 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/money";
-import { EXPENSE_CATEGORIES } from "@/lib/types";
 import {
   Card,
   EmptyState,
   buttonDanger,
   buttonPrimary,
+  buttonSecondary,
   cn,
   inputClass,
   labelClass,
 } from "@/components/ui";
+
+export type CategoryRow = {
+  id: string;
+  name: string;
+  active: boolean;
+};
 
 export type ExpenseRow = {
   id: string;
@@ -31,14 +37,20 @@ function today(): string {
 
 export function ExpenseManager({
   initialExpenses,
+  initialCategories,
   currency,
 }: {
   initialExpenses: ExpenseRow[];
+  initialCategories: CategoryRow[];
   currency: string;
 }) {
   const router = useRouter();
   const [expenses, setExpenses] = useState(initialExpenses);
-  const [category, setCategory] = useState<string>(EXPENSE_CATEGORIES[0]);
+  const [categories, setCategories] = useState(initialCategories);
+  const active = categories.filter((c) => c.active);
+  const [category, setCategory] = useState<string>(active[0]?.name ?? "");
+  const [newCategory, setNewCategory] = useState("");
+  const [managingCategories, setManagingCategories] = useState(false);
   const [amount, setAmount] = useState("");
   const [spentAt, setSpentAt] = useState(today());
   const [note, setNote] = useState("");
@@ -90,6 +102,100 @@ export function ExpenseManager({
       return;
     }
     setExpenses((prev) => prev.filter((e) => e.id !== expense.id));
+    router.refresh();
+  }
+
+  async function addCategory(event: React.FormEvent) {
+    event.preventDefault();
+    const name = newCategory.trim();
+    if (!name) return;
+    const res = await fetch("/api/expense-categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const data = (await res.json()) as { error?: string; category?: CategoryRow };
+    if (!res.ok || !data.category) {
+      setMessage({ tone: "bad", text: data.error ?? "Could not add it." });
+      return;
+    }
+    setCategories((prev) => [...prev, data.category!]);
+    setCategory(data.category.name);
+    setNewCategory("");
+    setMessage({ tone: "ok", text: `Added ${data.category.name}.` });
+    router.refresh();
+  }
+
+  async function setCategoryActive(row: CategoryRow, next: boolean) {
+    const res = await fetch(`/api/expense-categories/${row.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: next }),
+    });
+    const data = (await res.json()) as { error?: string; category?: CategoryRow };
+    if (!res.ok || !data.category) {
+      setMessage({ tone: "bad", text: data.error ?? "Could not update it." });
+      return;
+    }
+    setCategories((prev) =>
+      prev.map((c) => (c.id === row.id ? data.category! : c)),
+    );
+    // The form may have been sitting on a category that was just retired.
+    if (!next && category === row.name) {
+      const fallback = categories.find((c) => c.active && c.id !== row.id);
+      if (fallback) setCategory(fallback.name);
+    }
+    router.refresh();
+  }
+
+  async function renameCategory(row: CategoryRow) {
+    const name = prompt(`Rename "${row.name}" to:`, row.name)?.trim();
+    if (!name || name === row.name) return;
+    const res = await fetch(`/api/expense-categories/${row.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const data = (await res.json()) as { error?: string; category?: CategoryRow };
+    if (!res.ok || !data.category) {
+      setMessage({ tone: "bad", text: data.error ?? "Could not rename it." });
+      return;
+    }
+    setCategories((prev) =>
+      prev.map((c) => (c.id === row.id ? data.category! : c)),
+    );
+    if (category === row.name) setCategory(data.category.name);
+    setMessage({
+      tone: "ok",
+      text: `Renamed to ${data.category.name}. Past expenses keep the old name.`,
+    });
+    router.refresh();
+  }
+
+  async function removeCategory(row: CategoryRow) {
+    if (!confirm(`Remove the "${row.name}" category?`)) return;
+    const res = await fetch(`/api/expense-categories/${row.id}`, {
+      method: "DELETE",
+    });
+    const data = (await res.json()) as {
+      error?: string;
+      retired?: boolean;
+      message?: string;
+      category?: CategoryRow;
+    };
+    if (!res.ok) {
+      setMessage({ tone: "bad", text: data.error ?? "Could not remove it." });
+      return;
+    }
+    if (data.retired && data.category) {
+      setCategories((prev) =>
+        prev.map((c) => (c.id === row.id ? data.category! : c)),
+      );
+      setMessage({ tone: "ok", text: data.message ?? "Category retired." });
+    } else {
+      setCategories((prev) => prev.filter((c) => c.id !== row.id));
+      setMessage({ tone: "ok", text: `Deleted ${row.name}.` });
+    }
     router.refresh();
   }
 
@@ -177,12 +283,19 @@ export function ExpenseManager({
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
-                {EXPENSE_CATEGORIES.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
+                {active.map((option) => (
+                  <option key={option.id} value={option.name}>
+                    {option.name}
                   </option>
                 ))}
               </select>
+              <button
+                type="button"
+                className="mt-1 text-xs text-muted underline underline-offset-2"
+                onClick={() => setManagingCategories((v) => !v)}
+              >
+                {managingCategories ? "Done editing categories" : "Edit categories"}
+              </button>
             </div>
 
             <div>
@@ -234,6 +347,73 @@ export function ExpenseManager({
             </button>
           </form>
         </Card>
+
+        {managingCategories ? (
+          <Card className="mt-4 p-4">
+            <h2 className="font-semibold">Categories</h2>
+            <p className="mt-1 text-xs text-muted">
+              Renaming or retiring one never changes expenses already filed —
+              they keep the name they were saved with.
+            </p>
+
+            <form onSubmit={addCategory} className="mt-3 flex gap-2">
+              <input
+                className={inputClass}
+                placeholder="Transport"
+                value={newCategory}
+                maxLength={40}
+                onChange={(e) => setNewCategory(e.target.value)}
+                aria-label="New category name"
+              />
+              <button type="submit" className={buttonSecondary}>
+                Add
+              </button>
+            </form>
+
+            <ul className="mt-3 space-y-1">
+              {categories.map((row) => (
+                <li
+                  key={row.id}
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm",
+                    row.active ? "" : "opacity-55",
+                  )}
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {row.name}
+                    {!row.active ? (
+                      <span className="ml-1 text-xs text-muted">(retired)</span>
+                    ) : null}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-xs text-muted underline underline-offset-2 hover:text-foreground"
+                    onClick={() => renameCategory(row)}
+                  >
+                    Rename
+                  </button>
+                  {row.active ? (
+                    <button
+                      type="button"
+                      className="text-xs text-danger underline underline-offset-2"
+                      onClick={() => removeCategory(row)}
+                    >
+                      Remove
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="text-xs text-success underline underline-offset-2"
+                      onClick={() => setCategoryActive(row, true)}
+                    >
+                      Restore
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : null}
       </aside>
     </div>
   );

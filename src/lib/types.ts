@@ -82,7 +82,10 @@ export const LEDGER_SIGN: Record<LedgerType, 1 | -1> = {
   ADJUSTMENT: 1,
 };
 
-export const EXPENSE_CATEGORIES = [
+/// The categories the app ships with. These are inserted into the
+/// ExpenseCategory table by a migration and by the seed; at runtime the
+/// dropdown reads that table, not this list, so an admin can add their own.
+export const DEFAULT_EXPENSE_CATEGORIES = [
   "Supplies",
   "Rent",
   "Salaries",
@@ -91,7 +94,8 @@ export const EXPENSE_CATEGORIES = [
   "Maintenance",
   "Other",
 ] as const;
-export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+export type DefaultExpenseCategory =
+  (typeof DEFAULT_EXPENSE_CATEGORIES)[number];
 
 export function isPaymentMethod(value: unknown): value is PaymentMethod {
   return (

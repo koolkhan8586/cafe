@@ -136,6 +136,26 @@ async function main() {
   }
   console.log(`  ${MENU.length} categories, ${itemCount} menu items ready`);
 
+  // Mirrors the categories the expense-categories migration inserts, so a
+  // fresh database and a migrated one offer the same starting list.
+  const DEFAULT_CATEGORIES = [
+    "Supplies",
+    "Rent",
+    "Salaries",
+    "Utilities",
+    "Gas",
+    "Maintenance",
+    "Other",
+  ];
+  for (const [index, name] of DEFAULT_CATEGORIES.entries()) {
+    await prisma.expenseCategory.upsert({
+      where: { name },
+      update: {},
+      create: { name, sortOrder: index },
+    });
+  }
+  console.log(`  ${DEFAULT_CATEGORIES.length} expense categories ready`);
+
   console.log("\nSign in with:");
   console.log("  Admin    ADMIN    / admin1234");
   console.log("  Manager  MANAGER  / manager1234");
