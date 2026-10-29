@@ -33,18 +33,34 @@ type SubmitState =
   | { kind: "done"; orderId: number; whatsapp: "SENT" | "SKIPPED" | "FAILED" }
   | { kind: "error"; message: string };
 
+export type StaffOption = { id: string; code: string; name: string };
+
 export function MenuOrdering({
   categories,
   currency,
+  /** Admin/manager counter mode: order on behalf of staff or a walk-in. */
+  staffOptions,
 }: {
   categories: MenuCategory[];
   currency: string;
+  staffOptions?: StaffOption[];
 }) {
+  const counterMode = Array.isArray(staffOptions);
   const router = useRouter();
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [orderNotes, setOrderNotes] = useState("");
   const [activeCategory, setActiveCategory] = useState<string>(categories[0]?.id ?? "");
   const [state, setState] = useState<SubmitState>({ kind: "idle" });
+  const [payment, setPayment] = useState<"CASH" | "CREDIT">("CASH");
+  // Counter mode only: "" means a walk-in, identified by customerName.
+  const [forStaffId, setForStaffId] = useState<string>(
+    staffOptions && staffOptions.length > 0 ? staffOptions[0].id : "",
+  );
+  const [customerName, setCustomerName] = useState("");
+
+  // A walk-in has no account, so credit is not an option for them.
+  const walkIn = counterMode && forStaffId === "";
+  const effectivePayment: "CASH" | "CREDIT" = walkIn ? "CASH" : payment;
 
   const lines = useMemo(() => Object.values(cart), [cart]);
   const total = useMemo(
@@ -93,6 +109,9 @@ export function MenuOrdering({
             notes: line.notes.trim() || undefined,
           })),
           notes: orderNotes.trim() || undefined,
+          paymentMethod: effectivePayment,
+          ...(counterMode && !walkIn ? { staffId: forStaffId } : {}),
+          ...(walkIn ? { customerName: customerName.trim() || "Walk-in" } : {}),
         }),
       });
       const data = (await res.json()) as {
@@ -248,6 +267,72 @@ export function MenuOrdering({
 
           {lines.length > 0 ? (
             <>
+              {counterMode ? (
+                <div className="mt-4">
+                  <label className="mb-1.5 block text-sm font-medium" htmlFor="for-staff">
+                    Who is this for
+                  </label>
+                  <select
+                    id="for-staff"
+                    className={inputClass}
+                    value={forStaffId}
+                    onChange={(e) => setForStaffId(e.target.value)}
+                  >
+                    {staffOptions!.map((person) => (
+                      <option key={person.id} value={person.id}>
+                        {person.name} ({person.code})
+                      </option>
+                    ))}
+                    <option value="">Walk-in customer</option>
+                  </select>
+
+                  {walkIn ? (
+                    <input
+                      className={`${inputClass} mt-2`}
+                      placeholder="Customer name (optional)"
+                      value={customerName}
+                      maxLength={120}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      aria-label="Walk-in customer name"
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+
+              <fieldset className="mt-4">
+                <legend className="mb-1.5 text-sm font-medium">Payment</legend>
+                <div className="flex gap-2">
+                  {(["CASH", "CREDIT"] as const).map((method) => {
+                    const disabled = method === "CREDIT" && walkIn;
+                    return (
+                      <button
+                        key={method}
+                        type="button"
+                        disabled={disabled}
+                        aria-pressed={effectivePayment === method}
+                        onClick={() => setPayment(method)}
+                        className={cn(
+                          "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition",
+                          effectivePayment === method
+                            ? "border-brand bg-brand-soft text-brand-strong"
+                            : "border-border-subtle hover:bg-surface-muted",
+                          disabled && "cursor-not-allowed opacity-50",
+                        )}
+                      >
+                        {method === "CASH" ? "Cash" : "On account"}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1 text-xs text-muted">
+                  {walkIn
+                    ? "A walk-in has no account, so this is a cash sale."
+                    : effectivePayment === "CREDIT"
+                      ? "This goes on the staff ledger to settle later."
+                      : "Paid at the counter now."}
+                </p>
+              </fieldset>
+
               <div className="mt-4">
                 <label className="mb-1.5 block text-sm font-medium" htmlFor="order-notes">
                   Note for the counter

@@ -34,6 +34,10 @@ model Staff {
   updatedAt  DateTime @updatedAt
 
   orders Order[]
+  ordersPlaced  Order[]       @relation("OrdersPlaced")
+  ledgerEntries LedgerEntry[] @relation("LedgerOwner")
+  ledgerAuthored LedgerEntry[] @relation("LedgerAuthor")
+  expenses      Expense[]     @relation("ExpenseAuthor")
 
   @@index([role])
 }
@@ -83,16 +87,78 @@ model Order {
   subtotal   Int
   /// Sum of (unit cost x qty), in minor units. Denormalised for margin reports.
   totalCost  Int
+  /// "CASH" | "CREDIT". A credit order posts a CHARGE to the staff ledger;
+  /// a cash order is settled at the counter and never touches it.
+  paymentMethod String @default("CASH")
+  /// True when a manager or admin entered the order at the counter rather
+  /// than the employee placing it themselves.
+  isManual   Boolean @default(false)
+  /// Who keyed in a manual order. Null for self-service orders.
+  placedById String?
+  placedBy   Staff?  @relation("OrdersPlaced", fields: [placedById], references: [id], onDelete: SetNull)
+  /// Walk-in customer name, for manual cash orders with no staff account.
+  /// When set, staffId still points at the person who rang it up.
+  customerName String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   completedAt DateTime?
 
   items         OrderItem[]
   notifications NotificationLog[]
+  ledgerEntries LedgerEntry[]
 
   @@index([status])
   @@index([createdAt])
   @@index([staffId])
+  @@index([paymentMethod])
+}
+
+/// Running account for an employee who orders on credit.
+///
+/// The balance is never stored: it is always sum(CHARGE) - sum(PAYMENT) over
+/// this table, so a corrected or deleted entry can never leave a stale total
+/// behind. Amounts are positive minor units; `type` carries the direction.
+model LedgerEntry {
+  id      String @id @default(cuid())
+  staffId String
+  staff   Staff  @relation("LedgerOwner", fields: [staffId], references: [id], onDelete: Cascade)
+  /// "CHARGE" (an order on credit) | "PAYMENT" (they paid) |
+  /// "ADJUSTMENT" (a manual correction, positive increases what they owe)
+  type    String
+  /// CHARGE and PAYMENT are always positive; their direction comes from
+  /// `type`. ADJUSTMENT is the one entry that may be negative, to write off
+  /// part of what someone owes.
+  amount  Int
+  /// Set for a CHARGE raised by a credit order; null for payments.
+  orderId Int?
+  order   Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  note    String?
+  /// Who recorded it. Null if the staff member's own order raised the charge.
+  createdById String?
+  createdBy   Staff? @relation("LedgerAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([staffId])
+  @@index([createdAt])
+  @@index([orderId])
+}
+
+/// Money going out: supplies, rent, utilities and so on.
+model Expense {
+  id          String   @id @default(cuid())
+  /// One of EXPENSE_CATEGORIES in src/lib/types.ts.
+  category    String
+  amount      Int
+  /// The day the money was spent, which is not always the day it was entered.
+  spentAt     DateTime
+  note        String?
+  createdById String?
+  createdBy   Staff?   @relation("ExpenseAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([spentAt])
+  @@index([category])
 }
 
 /// A line on an order. Price, cost and name are snapshotted at order time so

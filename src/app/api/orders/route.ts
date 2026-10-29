@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ApiError, handleApiError, requireApiRole } from "@/lib/api-auth";
 import { notifyAdminOfOrder } from "@/lib/waha";
-import { isOrderStatus, type OrderStatus } from "@/lib/types";
+import {
+  isOrderStatus,
+  isPaymentMethod,
+  type OrderStatus,
+  type PaymentMethod,
+} from "@/lib/types";
 
 const MAX_QTY_PER_LINE = 50;
 
@@ -65,7 +70,13 @@ export async function POST(request: Request) {
   try {
     const user = await requireApiRole(["EMPLOYEE", "ADMIN", "MANAGER"]);
 
-    let body: { items?: unknown; notes?: unknown };
+    let body: {
+      items?: unknown;
+      notes?: unknown;
+      paymentMethod?: unknown;
+      staffId?: unknown;
+      customerName?: unknown;
+    };
     try {
       body = await request.json();
     } catch {
@@ -97,8 +108,52 @@ export async function POST(request: Request) {
       );
     }
 
-    const staff = await prisma.staff.findUnique({ where: { id: user.sub } });
-    if (!staff || !staff.active) throw new ApiError(403, "Your account is inactive.");
+    // Who the order is FOR. An admin or manager may ring one up on behalf of
+    // another staff member, or for a walk-in who has no account at all.
+    const canActForOthers = user.role === "ADMIN" || user.role === "MANAGER";
+    const requestedStaffId =
+      typeof body.staffId === "string" ? body.staffId.trim() : "";
+    const customerName =
+      typeof body.customerName === "string"
+        ? body.customerName.trim().slice(0, 120)
+        : "";
+
+    if ((requestedStaffId || customerName) && !canActForOthers) {
+      throw new ApiError(403, "Only an admin or manager can order for someone else.");
+    }
+    if (requestedStaffId && customerName) {
+      throw new ApiError(400, "Pick a staff member or a walk-in name, not both.");
+    }
+
+    const isManual = canActForOthers && Boolean(requestedStaffId || customerName);
+
+    // For a walk-in the order still hangs off the person who rang it up, so
+    // the required Order.staffId relation always points at a real account.
+    const ownerId = requestedStaffId || user.sub;
+    const staff = await prisma.staff.findUnique({ where: { id: ownerId } });
+    if (!staff) throw new ApiError(404, "That staff member no longer exists.");
+    if (!staff.active) {
+      throw new ApiError(
+        403,
+        requestedStaffId ? `${staff.name}'s account is inactive.` : "Your account is inactive.",
+      );
+    }
+
+    let paymentMethod: PaymentMethod = "CASH";
+    if (body.paymentMethod !== undefined) {
+      if (!isPaymentMethod(body.paymentMethod)) {
+        throw new ApiError(400, "Payment must be cash or credit.");
+      }
+      paymentMethod = body.paymentMethod;
+    }
+
+    // A walk-in has no account to charge, so credit is meaningless for them.
+    if (customerName && paymentMethod === "CREDIT") {
+      throw new ApiError(
+        400,
+        "A walk-in order cannot go on credit — there is no account to charge.",
+      );
+    }
 
     const orderItems = lines.map((line) => {
       const item = byId.get(line.menuItemId)!;
@@ -116,20 +171,44 @@ export async function POST(request: Request) {
     const subtotal = orderItems.reduce((sum, i) => sum + i.lineTotal, 0);
     const totalCost = orderItems.reduce((sum, i) => sum + i.unitCost * i.qty, 0);
 
-    const order = await prisma.order.create({
-      data: {
-        staffId: staff.id,
-        status: "PENDING",
-        notes: orderNotes || null,
-        department: staff.department,
-        subtotal,
-        totalCost,
-        items: { create: orderItems },
-      },
-      include: {
-        items: true,
-        staff: { select: { name: true, code: true, department: true } },
-      },
+    // The order and its ledger charge must land together: a credit order whose
+    // charge failed to post would be free, and a charge without an order would
+    // be unexplainable on the statement.
+    const order = await prisma.$transaction(async (tx) => {
+      const created = await tx.order.create({
+        data: {
+          staffId: staff.id,
+          status: "PENDING",
+          notes: orderNotes || null,
+          department: customerName ? null : staff.department,
+          subtotal,
+          totalCost,
+          paymentMethod,
+          isManual,
+          placedById: isManual ? user.sub : null,
+          customerName: customerName || null,
+          items: { create: orderItems },
+        },
+        include: {
+          items: true,
+          staff: { select: { name: true, code: true, department: true } },
+        },
+      });
+
+      if (paymentMethod === "CREDIT") {
+        await tx.ledgerEntry.create({
+          data: {
+            staffId: staff.id,
+            type: "CHARGE",
+            amount: subtotal,
+            orderId: created.id,
+            note: `Order #${created.id}`,
+            createdById: isManual ? user.sub : null,
+          },
+        });
+      }
+
+      return created;
     });
 
     // WhatsApp is best-effort: a WAHA outage must not lose the order. The

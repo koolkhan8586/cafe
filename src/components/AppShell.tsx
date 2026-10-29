@@ -4,17 +4,22 @@ import { clearSession } from "@/lib/session";
 import type { Role } from "@/lib/types";
 import { NavLink } from "@/components/NavLink";
 
-type NavItem = { href: string; label: string; roles: Role[] };
+type NavItem = { href: string; label: string; roles: Role[]; exact?: boolean };
 
 const NAV: NavItem[] = [
   { href: "/menu", label: "Menu", roles: ["EMPLOYEE", "ADMIN", "MANAGER"] },
   { href: "/orders", label: "My orders", roles: ["EMPLOYEE", "ADMIN", "MANAGER"] },
+  { href: "/counter", label: "New order", roles: ["ADMIN", "MANAGER"] },
   { href: "/admin/orders", label: "Counter", roles: ["ADMIN"] },
   { href: "/admin/menu", label: "Manage menu", roles: ["ADMIN"] },
   { href: "/admin/staff", label: "Staff", roles: ["ADMIN"] },
   { href: "/admin/settings", label: "WhatsApp", roles: ["ADMIN"] },
-  { href: "/manager", label: "Sales", roles: ["MANAGER"] },
+  // "/manager" is a prefix of the ledger and expense routes, so it only
+  // counts as active on an exact match.
+  { href: "/manager", label: "Sales", roles: ["MANAGER"], exact: true },
   { href: "/manager/costs", label: "Costs & margin", roles: ["MANAGER"] },
+  { href: "/manager/ledger", label: "Staff ledger", roles: ["ADMIN", "MANAGER"] },
+  { href: "/manager/expenses", label: "Expenses", roles: ["ADMIN", "MANAGER"] },
 ];
 
 async function signOut() {
@@ -47,7 +52,7 @@ export function AppShell({
 
           <nav className="flex flex-1 flex-wrap items-center gap-1">
             {items.map((item) => (
-              <NavLink key={item.href} href={item.href}>
+              <NavLink key={item.href} href={item.href} exact={item.exact}>
                 {item.label}
               </NavLink>
             ))}
